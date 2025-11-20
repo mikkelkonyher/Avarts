@@ -123,7 +123,7 @@ class ApiService {
             }),
           )
           .timeout(
-            const Duration(seconds: 30),
+            const Duration(seconds: 300),
             onTimeout: () {
               throw ApiException(
                 'Request timeout - please check your internet connection',
