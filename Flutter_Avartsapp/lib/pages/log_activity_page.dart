@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_avartsproto/models/activity_post.dart';
+import 'package:avarts/models/activity_post.dart';
 
 class LogActivityPage extends StatefulWidget {
   const LogActivityPage({super.key, required this.currentUser});

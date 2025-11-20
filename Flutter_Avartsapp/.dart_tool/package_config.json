@@ -194,7 +194,7 @@
       "languageVersion": "3.4"
     },
     {
-      "name": "flutter_avartsproto",
+      "name": "avarts",
       "rootUri": "../",
       "packageUri": "lib/",
       "languageVersion": "3.9"

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_avartsproto/pages/login_page.dart';
-import 'package:flutter_avartsproto/services/api_service.dart';
+import 'package:avarts/pages/login_page.dart';
+import 'package:avarts/services/api_service.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});

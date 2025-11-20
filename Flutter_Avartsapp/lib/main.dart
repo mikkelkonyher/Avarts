@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 // Project imports
-import 'package:flutter_avartsproto/pages/login_page.dart';
-import 'package:flutter_avartsproto/pages/register_page.dart';
+import 'package:avarts/pages/login_page.dart';
+import 'package:avarts/pages/register_page.dart';
 
 /// Main background color for the app
 const Color _scaffoldColor = Color(0xFF0D1117);

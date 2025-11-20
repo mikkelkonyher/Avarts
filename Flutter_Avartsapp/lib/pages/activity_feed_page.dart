@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_avartsproto/models/activity_post.dart';
-import 'package:flutter_avartsproto/pages/myprofile_page.dart';
-import 'package:flutter_avartsproto/pages/log_activity_page.dart';
-import 'package:flutter_avartsproto/services/api_service.dart';
+import 'package:avarts/models/activity_post.dart';
+import 'package:avarts/pages/myprofile_page.dart';
+import 'package:avarts/pages/log_activity_page.dart';
+import 'package:avarts/services/api_service.dart';
 
 class ActivityFeedPage extends StatefulWidget {
   const ActivityFeedPage({super.key, required this.loginResult});

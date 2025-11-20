@@ -2,9 +2,9 @@
 import 'package:flutter/material.dart';
 
 // Project imports
-import 'package:flutter_avartsproto/pages/register_page.dart';
-import 'package:flutter_avartsproto/pages/activity_feed_page.dart';
-import 'package:flutter_avartsproto/services/api_service.dart';
+import 'package:avarts/pages/register_page.dart';
+import 'package:avarts/pages/activity_feed_page.dart';
+import 'package:avarts/services/api_service.dart';
 
 /// Login page where users authenticate with email and password
 class LoginPage extends StatefulWidget {

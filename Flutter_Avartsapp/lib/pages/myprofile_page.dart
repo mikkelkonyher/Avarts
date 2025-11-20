@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_avartsproto/pages/earned_badges_page.dart';
-import 'package:flutter_avartsproto/pages/friends_page.dart';
-import 'package:flutter_avartsproto/pages/login_page.dart';
-import 'package:flutter_avartsproto/services/api_service.dart';
+import 'package:avarts/pages/earned_badges_page.dart';
+import 'package:avarts/pages/friends_page.dart';
+import 'package:avarts/pages/login_page.dart';
+import 'package:avarts/services/api_service.dart';
 
 class MyProfilePage extends StatelessWidget {
   const MyProfilePage({super.key, required this.loginResult});
