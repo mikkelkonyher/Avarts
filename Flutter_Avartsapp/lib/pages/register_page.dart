@@ -12,8 +12,6 @@ class RegisterPage extends StatefulWidget {
 class _RegisterPageState extends State<RegisterPage> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _userNameController = TextEditingController();
-  final TextEditingController _firstNameController = TextEditingController();
-  final TextEditingController _lastNameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final AuthService _authService = AuthService();
@@ -31,17 +29,9 @@ class _RegisterPageState extends State<RegisterPage> {
         userName: _userNameController.text.trim().isNotEmpty
             ? _userNameController.text.trim()
             : null,
-        firstName: _firstNameController.text.trim().isNotEmpty
-            ? _firstNameController.text.trim()
-            : null,
-        lastName: _lastNameController.text.trim().isNotEmpty
-            ? _lastNameController.text.trim()
-            : null,
       );
       if (!mounted) return;
       _userNameController.clear();
-      _firstNameController.clear();
-      _lastNameController.clear();
       _emailController.clear();
       _passwordController.clear();
       ScaffoldMessenger.of(context).showSnackBar(
@@ -71,8 +61,6 @@ class _RegisterPageState extends State<RegisterPage> {
   @override
   void dispose() {
     _userNameController.dispose();
-    _firstNameController.dispose();
-    _lastNameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -136,34 +124,6 @@ class _RegisterPageState extends State<RegisterPage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: TextFormField(
-                                    controller: _firstNameController,
-                                    decoration: const InputDecoration(
-                                      labelText: 'First Name',
-                                    ),
-                                    validator: (value) => value!.isEmpty
-                                        ? 'Please enter your first name'
-                                        : null,
-                                  ),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: TextFormField(
-                                    controller: _lastNameController,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Last Name',
-                                    ),
-                                    validator: (value) => value!.isEmpty
-                                        ? 'Please enter your last name'
-                                        : null,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
                             TextFormField(
                               controller: _userNameController,
                               decoration: const InputDecoration(

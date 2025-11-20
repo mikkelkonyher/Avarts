@@ -97,32 +97,21 @@ class AuthService {
   ///
   /// [email] - User's email address
   /// [password] - User's password (minimum 6 characters)
-  /// [userName] - Optional username
-  /// [firstName] - Optional first name
-  /// [lastName] - Optional last name
+  /// [userName] - Optional username (used as display name)
   ///
   /// Throws [AuthException] if registration fails
   Future<void> registerUser({
     required String email,
     required String password,
     String? userName,
-    String? firstName,
-    String? lastName,
   }) async {
     try {
       // Build user metadata
       final metadata = <String, dynamic>{};
       if (userName != null && userName.isNotEmpty) {
         metadata['userName'] = userName;
-      }
-      if (firstName != null && firstName.isNotEmpty) {
-        metadata['first_name'] = firstName;
-      }
-      if (lastName != null && lastName.isNotEmpty) {
-        metadata['last_name'] = lastName;
-      }
-      if (firstName != null && lastName != null) {
-        metadata['full_name'] = '$firstName $lastName';
+        // Set full_name to userName so it's used as display name
+        metadata['full_name'] = userName;
       }
 
       // Get email verification redirect URL from environment
