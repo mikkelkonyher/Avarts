@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:avarts/pages/login_page.dart';
-import 'package:avarts/services/api_service.dart';
+import 'package:avarts/services/auth_service.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -16,7 +16,7 @@ class _RegisterPageState extends State<RegisterPage> {
   final TextEditingController _lastNameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final ApiService _apiService = ApiService();
+  final AuthService _authService = AuthService();
   bool _isLoading = false;
 
   Future<void> registerUser() async {
@@ -25,12 +25,18 @@ class _RegisterPageState extends State<RegisterPage> {
     });
 
     try {
-      await _apiService.registerUser(
-        userName: _userNameController.text,
-        firstName: _firstNameController.text,
-        lastName: _lastNameController.text,
-        email: _emailController.text,
+      await _authService.registerUser(
+        email: _emailController.text.trim(),
         password: _passwordController.text,
+        userName: _userNameController.text.trim().isNotEmpty
+            ? _userNameController.text.trim()
+            : null,
+        firstName: _firstNameController.text.trim().isNotEmpty
+            ? _firstNameController.text.trim()
+            : null,
+        lastName: _lastNameController.text.trim().isNotEmpty
+            ? _lastNameController.text.trim()
+            : null,
       );
       if (!mounted) return;
       _userNameController.clear();
@@ -39,12 +45,16 @@ class _RegisterPageState extends State<RegisterPage> {
       _emailController.clear();
       _passwordController.clear();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('User registered successfully!')),
+        const SnackBar(
+          content: Text(
+            'User registered successfully! Please check your email to verify your account.',
+          ),
+        ),
       );
       Navigator.of(
         context,
       ).pushReplacement(MaterialPageRoute(builder: (_) => const LoginPage()));
-    } on ApiException catch (error) {
+    } on AuthException catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to register user: ${error.message}')),

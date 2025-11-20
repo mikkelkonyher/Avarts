@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 // Project imports
 import 'package:avarts/pages/register_page.dart';
 import 'package:avarts/pages/activity_feed_page.dart';
-import 'package:avarts/services/api_service.dart';
+import 'package:avarts/services/auth_service.dart';
 
 /// Login page where users authenticate with email and password
 class LoginPage extends StatefulWidget {
@@ -21,9 +21,10 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController _passwordController = TextEditingController();
 
   // Services and state
-  final ApiService _apiService = ApiService();
+  final AuthService _authService = AuthService();
   bool _isLoading = false;
   bool _obscurePassword = true;
+  final TextEditingController _resetEmailController = TextEditingController();
 
   /// Handles the login form submission
   /// Validates form, calls API, and navigates to activity feed on success
@@ -35,7 +36,7 @@ class _LoginPageState extends State<LoginPage> {
     });
 
     try {
-      final loginResult = await _apiService.login(
+      final loginResult = await _authService.login(
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
@@ -47,7 +48,7 @@ class _LoginPageState extends State<LoginPage> {
           builder: (_) => ActivityFeedPage(loginResult: loginResult),
         ),
       );
-    } on ApiException catch (error) {
+    } on AuthException catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
@@ -61,11 +62,64 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  /// Handles forgot password functionality
+  Future<void> _handleForgotPassword() async {
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Reset Password'),
+          content: TextField(
+            controller: _resetEmailController,
+            autofocus: true,
+            keyboardType: TextInputType.emailAddress,
+            decoration: const InputDecoration(
+              labelText: 'Email',
+              hintText: 'Enter your email address',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () =>
+                  Navigator.of(context).pop(_resetEmailController.text.trim()),
+              child: const Text('Send Reset Link'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (result != null && result.isNotEmpty) {
+      try {
+        await _authService.resetPassword(email: result);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Password reset email sent! Check your inbox.'),
+          ),
+        );
+        _resetEmailController.clear();
+      } on AuthException catch (error) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to send reset email: ${error.message}'),
+          ),
+        );
+      }
+    }
+  }
+
   @override
   void dispose() {
     // Clean up controllers to prevent memory leaks
     _emailController.dispose();
     _passwordController.dispose();
+    _resetEmailController.dispose();
     super.dispose();
   }
 
@@ -170,7 +224,19 @@ class _LoginPageState extends State<LoginPage> {
                                   ? 'Please enter your password'
                                   : null,
                             ),
-                            const SizedBox(height: 24),
+                            const SizedBox(height: 8),
+
+                            // Forgot password link
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton(
+                                onPressed: _isLoading
+                                    ? null
+                                    : _handleForgotPassword,
+                                child: const Text('Forgot password?'),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
 
                             // Login button
                             ElevatedButton.icon(
