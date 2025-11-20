@@ -141,7 +141,10 @@ class ActivityService {
             'image_url': imageUrl,
           })
           .eq('id', activityId)
-          .eq('user_id', userId) // Ensure user can only update their own activities
+          .eq(
+            'user_id',
+            userId,
+          ) // Ensure user can only update their own activities
           .select()
           .single();
 
@@ -169,10 +172,12 @@ class ActivityService {
           .from('activities')
           .delete()
           .eq('id', activityId)
-          .eq('user_id', userId); // Ensure user can only delete their own activities
+          .eq(
+            'user_id',
+            userId,
+          ); // Ensure user can only delete their own activities
     } on Exception catch (e) {
       throw Exception('Failed to delete activity: ${e.toString()}');
     }
   }
 }
-

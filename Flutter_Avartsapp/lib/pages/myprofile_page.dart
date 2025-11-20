@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:avarts/pages/earned_badges_page.dart';
 import 'package:avarts/pages/friends_page.dart';
 import 'package:avarts/pages/login_page.dart';
+import 'package:avarts/pages/log_activity_page.dart';
 import 'package:avarts/services/auth_service.dart';
 import 'package:avarts/services/activity_service.dart';
 import 'package:avarts/models/activity_post.dart';
@@ -23,11 +24,23 @@ class _MyProfilePageState extends State<MyProfilePage>
   // Real activities data from Supabase
   List<ActivityPost> _activities = [];
   bool _isLoadingActivities = true;
+  int _currentTabIndex = 0;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() {
+      if (!_tabController.indexIsChanging) {
+        setState(() {
+          _currentTabIndex = _tabController.index;
+        });
+        // Refresh activities when switching to Activities tab
+        if (_tabController.index == 1 && !_isLoadingActivities) {
+          _loadActivities();
+        }
+      }
+    });
     _loadActivities();
   }
 
@@ -138,6 +151,28 @@ class _MyProfilePageState extends State<MyProfilePage>
 
   int get _totalMinutes =>
       _stats.fold<int>(0, (sum, stat) => sum + stat.minutes);
+
+  Future<void> _openLogActivity() async {
+    final result = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) =>
+            LogActivityPage(currentUser: widget.loginResult.displayName),
+      ),
+    );
+
+    if (result == true) {
+      // Activity was posted successfully, refresh the list
+      _loadActivities();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Activity posted successfully!'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
 
   Future<void> _deleteActivity(int index) async {
     final activity = _activities[index];
@@ -543,6 +578,13 @@ class _MyProfilePageState extends State<MyProfilePage>
           _buildActivitiesTab(context, theme, colors),
         ],
       ),
+      floatingActionButton: _currentTabIndex == 1
+          ? FloatingActionButton.extended(
+              onPressed: _openLogActivity,
+              icon: const Icon(Icons.post_add_rounded),
+              label: const Text('Log activity'),
+            )
+          : null,
     );
   }
 
