@@ -29,13 +29,6 @@ A Flutter app for tracking and sharing your chill activities.
 
    Create a `.env` file in the root directory (`Flutter_Avartsapp/`) with the following content:
 
-   ```
-   SUPABASE_URL=https://uuxsucetynykcaplgsir.supabase.co
-   SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV1eHN1Y2V0eW55a2NhcGxnc2lyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM1OTI4OTEsImV4cCI6MjA3OTE2ODg5MX0.JTMcayB53lcWlKUrT3x4oNEUSn5ts6iPjcLO40a6nCM
-   SUPABASE_REDIRECT_URL=avarts://reset-password
-   SUPABASE_EMAIL_REDIRECT_URL=avarts://email-verified
-   ```
-
    **Important:** The `.env` file is already in `.gitignore` and should never be committed to version control.
 
 4. **Configure Supabase URL Settings**
