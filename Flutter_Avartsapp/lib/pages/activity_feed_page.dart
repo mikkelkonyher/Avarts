@@ -42,7 +42,7 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
     ),
     ActivityPost(
       author: 'Naptorius Nate',
-      activity: 'Bingewatching classics',
+      activity: 'Bingewatching',
       title: 'Finished another trilogy',
       description: 'All the godfather movies in one sitting. What a journey.',
       duration: const Duration(hours: 9),

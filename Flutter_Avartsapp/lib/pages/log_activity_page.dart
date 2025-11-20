@@ -16,9 +16,9 @@ class _LogActivityPageState extends State<LogActivityPage> {
 
   final List<String> _activities = const [
     'Nap on Couch',
-    'Bingewatching classics',
+    'Bingewatching',
     'Netflix marathons',
-    'Doomscrolling cat videos',
+    'Doomscrolling',
     'Snack break',
     'Meditation attempt',
     'Pro-level procrastination',
