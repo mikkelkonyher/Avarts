@@ -1,5 +1,8 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:avarts/models/activity_post.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:avarts/services/activity_service.dart';
+import 'package:avarts/services/image_upload_service.dart';
 
 class LogActivityPage extends StatefulWidget {
   const LogActivityPage({super.key, required this.currentUser});
@@ -13,6 +16,9 @@ class LogActivityPage extends StatefulWidget {
 class _LogActivityPageState extends State<LogActivityPage> {
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
+  final ActivityService _activityService = ActivityService();
+  final ImageUploadService _imageUploadService = ImageUploadService();
+  final ImagePicker _imagePicker = ImagePicker();
 
   final List<String> _activities = const [
     'Nap on Couch',
@@ -35,6 +41,7 @@ class _LogActivityPageState extends State<LogActivityPage> {
   int _hours = 1;
   int _minutes = 0;
   String? _selectedMedia;
+  File? _selectedImageFile;
   bool _submitting = false;
 
   @override
@@ -61,23 +68,136 @@ class _LogActivityPageState extends State<LogActivityPage> {
     }
 
     setState(() => _submitting = true);
-    await Future<void>.delayed(const Duration(milliseconds: 350));
 
-    final post = ActivityPost(
-      author: widget.currentUser,
-      activity: _selectedActivity!,
-      title: title,
-      description: description,
-      duration: Duration(hours: _hours, minutes: _minutes),
-      createdAt: DateTime.now(),
-      mediaUrl: _selectedMedia,
-    );
+    try {
+      // Calculate total minutes
+      final totalMinutes = (_hours * 60) + _minutes;
 
-    if (!mounted) return;
-    Navigator.of(context).pop(post);
+      // Upload image if a file was selected
+      String? imageUrl;
+      if (_selectedImageFile != null) {
+        try {
+          imageUrl = await _imageUploadService.uploadToSupabaseStorage(
+            file: _selectedImageFile!,
+          );
+        } catch (e) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to upload image: $e'),
+              duration: const Duration(seconds: 3),
+            ),
+          );
+          setState(() => _submitting = false);
+          return;
+        }
+      } else if (_selectedMedia != null && _selectedMedia!.isNotEmpty) {
+        // If it's a URL (from the preset options), use it directly
+        imageUrl = _selectedMedia;
+      }
+
+      // Post activity to Supabase
+      await _activityService.postActivity(
+        title: title,
+        activity: _selectedActivity!,
+        description: description,
+        timeMinutes: totalMinutes,
+        imageUrl: imageUrl,
+      );
+
+      if (!mounted) return;
+
+      // Show success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Activity posted successfully!'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+
+      // Navigate back
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to post activity: $e'),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+      setState(() => _submitting = false);
+    }
   }
 
-  void _pickMedia() {
+  Future<void> _pickMedia() async {
+    // Show options: Camera, Gallery, or Preset images
+    final option = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.camera_alt),
+                title: const Text('Take Photo'),
+                onTap: () => Navigator.of(context).pop('camera'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Choose from Gallery'),
+                onTap: () => Navigator.of(context).pop('gallery'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.image),
+                title: const Text('Use Preset Image'),
+                onTap: () => Navigator.of(context).pop('preset'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (option == null) return;
+
+    // Handle preset images
+    if (option == 'preset') {
+      _showPresetImages();
+      return;
+    }
+
+    // Handle camera or gallery
+    try {
+      final imageSource = option == 'camera'
+          ? ImageSource.camera
+          : ImageSource.gallery;
+      final XFile? image = await _imagePicker.pickImage(
+        source: imageSource,
+        imageQuality: 85,
+        maxWidth: 1920,
+      );
+
+      if (image != null) {
+        setState(() {
+          _selectedImageFile = File(image.path);
+          _selectedMedia = null; // Clear preset selection
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to pick image: $e'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  void _showPresetImages() {
     showModalBottomSheet<String>(
       context: context,
       showDragHandle: true,
@@ -105,7 +225,10 @@ class _LogActivityPageState extends State<LogActivityPage> {
       },
     ).then((value) {
       if (value != null) {
-        setState(() => _selectedMedia = value);
+        setState(() {
+          _selectedMedia = value;
+          _selectedImageFile = null; // Clear file selection
+        });
       }
     });
   }
@@ -195,16 +318,23 @@ class _LogActivityPageState extends State<LogActivityPage> {
                   ),
                 ),
               ),
-              if (_selectedMedia != null) ...[
+              if (_selectedMedia != null || _selectedImageFile != null) ...[
                 const SizedBox(width: 12),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(18),
-                  child: Image.network(
-                    _selectedMedia!,
-                    width: 58,
-                    height: 58,
-                    fit: BoxFit.cover,
-                  ),
+                  child: _selectedImageFile != null
+                      ? Image.file(
+                          _selectedImageFile!,
+                          width: 58,
+                          height: 58,
+                          fit: BoxFit.cover,
+                        )
+                      : Image.network(
+                          _selectedMedia!,
+                          width: 58,
+                          height: 58,
+                          fit: BoxFit.cover,
+                        ),
                 ),
               ],
             ],
