@@ -125,7 +125,7 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Home'),
+        title: const Text('Feed'),
         actions: [
           IconButton(
             tooltip: 'View insights',
