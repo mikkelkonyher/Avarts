@@ -160,11 +160,18 @@ class _BadgeIcon extends StatelessWidget {
       radius: 28,
       backgroundColor: accent.withValues(alpha: 0.15),
       child: badge.isCatIcon
-          ? Text(
-              '🐱',
-              style: TextStyle(
-                fontSize: 26,
-                color: badge.unlocked ? accent : accent.withValues(alpha: 0.8),
+          ? ColorFiltered(
+              colorFilter: badge.unlocked
+                  ? const ColorFilter.mode(Colors.transparent, BlendMode.color)
+                  : const ColorFilter.matrix([
+                      0.2126, 0.7152, 0.0722, 0, 0, // Red channel
+                      0.2126, 0.7152, 0.0722, 0, 0, // Green channel
+                      0.2126, 0.7152, 0.0722, 0, 0, // Blue channel
+                      0, 0, 0, 1, 0, // Alpha channel
+                    ]),
+              child: Text(
+                '🐱',
+                style: const TextStyle(fontSize: 26),
               ),
             )
           : Icon(badge.icon, color: accent, size: 28),
