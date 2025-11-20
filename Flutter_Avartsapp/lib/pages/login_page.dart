@@ -49,9 +49,9 @@ class _LoginPageState extends State<LoginPage> {
       );
     } on ApiException catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Login failed: ${error.message}')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Login failed: ${error.message}')));
     } finally {
       if (mounted) {
         setState(() {
@@ -217,4 +217,3 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 }
-
