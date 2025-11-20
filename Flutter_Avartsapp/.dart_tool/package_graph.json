@@ -1,10 +1,10 @@
 {
   "roots": [
-    "Avarts"
+    "flutter_avartsproto"
   ],
   "packages": [
     {
-      "name": "Avarts",
+      "name": "flutter_avartsproto",
       "version": "1.0.0+1",
       "dependencies": [
         "cupertino_icons",
