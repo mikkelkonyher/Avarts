@@ -3,6 +3,7 @@ import 'package:avarts/pages/earned_badges_page.dart';
 import 'package:avarts/pages/friends_page.dart';
 import 'package:avarts/pages/login_page.dart';
 import 'package:avarts/services/auth_service.dart';
+import 'package:avarts/services/activity_service.dart';
 import 'package:avarts/models/activity_post.dart';
 
 class MyProfilePage extends StatefulWidget {
@@ -17,56 +18,55 @@ class MyProfilePage extends StatefulWidget {
 class _MyProfilePageState extends State<MyProfilePage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  final ActivityService _activityService = ActivityService();
 
-  // Dummy activities data
-  List<ActivityPost> _activities = [
-    ActivityPost(
-      author: 'You',
-      activity: 'Nap on Couch',
-      title: 'Afternoon Power Nap',
-      description:
-          'Perfect 2-hour nap that recharged my batteries. Best decision of the day!',
-      duration: const Duration(hours: 2, minutes: 0),
-      createdAt: DateTime.now().subtract(const Duration(days: 1)),
-      mediaUrl:
-          'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=800&q=80',
-    ),
-    ActivityPost(
-      author: 'You',
-      activity: 'Bingewatching classics',
-      title: 'Marathon Session',
-      description: 'Watched an entire season of my favorite show. No regrets!',
-      duration: const Duration(hours: 5, minutes: 30),
-      createdAt: DateTime.now().subtract(const Duration(days: 2)),
-      mediaUrl:
-          'https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=800&q=80',
-    ),
-    ActivityPost(
-      author: 'You',
-      activity: 'Doomscrolling cat videos',
-      title: 'Cat Video Binge',
-      description:
-          'Spent way too much time watching adorable cats. Worth every minute!',
-      duration: const Duration(hours: 1, minutes: 45),
-      createdAt: DateTime.now().subtract(const Duration(days: 3)),
-    ),
-    ActivityPost(
-      author: 'You',
-      activity: 'Netflix marathons',
-      title: 'Weekend Chill',
-      description:
-          'Perfect weekend activity - just me, my couch, and endless content.',
-      duration: const Duration(hours: 4, minutes: 15),
-      createdAt: DateTime.now().subtract(const Duration(days: 5)),
-      mediaUrl:
-          'https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&w=800&q=80',
-    ),
-  ];
+  // Real activities data from Supabase
+  List<ActivityPost> _activities = [];
+  bool _isLoadingActivities = true;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _loadActivities();
+  }
+
+  Future<void> _loadActivities() async {
+    setState(() => _isLoadingActivities = true);
+    try {
+      final activitiesData = await _activityService.getUserActivities();
+      setState(() {
+        _activities = activitiesData.map((data) {
+          // Handle image_url - it might be null or empty string
+          final imageUrl = data['image_url'];
+          final mediaUrl = (imageUrl is String && imageUrl.isNotEmpty)
+              ? imageUrl
+              : null;
+
+          return ActivityPost(
+            id: data['id'] as String?,
+            author: widget.loginResult.displayName,
+            activity: data['activity'] as String,
+            title: data['title'] as String,
+            description: data['description'] as String? ?? '',
+            duration: Duration(minutes: data['time_minutes'] as int),
+            createdAt: DateTime.parse(data['created_at'] as String),
+            mediaUrl: mediaUrl,
+          );
+        }).toList();
+        _isLoadingActivities = false;
+      });
+    } catch (e) {
+      setState(() => _isLoadingActivities = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to load activities: $e'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -75,32 +75,63 @@ class _MyProfilePageState extends State<MyProfilePage>
     super.dispose();
   }
 
-  List<_ChillStat> get _stats => const [
-    _ChillStat(
-      label: 'Chilling on the couch',
-      minutes: 540,
-      icon: Icons.weekend,
-      color: Color(0xFF2F81F7),
-    ),
-    _ChillStat(
-      label: 'Netflix marathons',
-      minutes: 420,
-      icon: Icons.tv,
-      color: Color(0xFF8957E5),
-    ),
-    _ChillStat(
-      label: 'Bingewatching classics',
-      minutes: 315,
-      icon: Icons.movie_filter,
-      color: Color(0xFF238636),
-    ),
-    _ChillStat(
-      label: 'Doomscrolling',
-      minutes: 330,
-      icon: Icons.swipe_up,
-      color: Color(0xFFD29922),
-    ),
-  ];
+  List<_ChillStat> get _stats {
+    // Calculate stats from real activities
+    final Map<String, int> activityMinutes = {};
+
+    for (final activity in _activities) {
+      final minutes = activity.duration.inMinutes;
+      activityMinutes[activity.activity] =
+          (activityMinutes[activity.activity] ?? 0) + minutes;
+    }
+
+    // Convert to list of stats
+    final stats = <_ChillStat>[];
+
+    // Map activity types to icons and colors
+    final activityConfig = {
+      'Nap on Couch': (icon: Icons.weekend, color: Color(0xFF2F81F7)),
+      'Netflix marathons': (icon: Icons.tv, color: Color(0xFF8957E5)),
+      'Bingewatching': (icon: Icons.movie_filter, color: Color(0xFF238636)),
+      'Bingewatching classics': (
+        icon: Icons.movie_filter,
+        color: Color(0xFF238636),
+      ),
+      'Doomscrolling': (icon: Icons.swipe_up, color: Color(0xFFD29922)),
+      'Doomscrolling cat videos': (
+        icon: Icons.swipe_up,
+        color: Color(0xFFD29922),
+      ),
+      'Snack break': (icon: Icons.local_pizza, color: Color(0xFFED8B00)),
+      'Meditation attempt': (
+        icon: Icons.self_improvement,
+        color: Color(0xFF3FB950),
+      ),
+      'Pro-level procrastination': (
+        icon: Icons.hourglass_empty,
+        color: Color(0xFFFF6B6B),
+      ),
+    };
+
+    activityMinutes.forEach((activity, minutes) {
+      final config =
+          activityConfig[activity] ??
+          (icon: Icons.fitness_center, color: Color(0xFF2F81F7));
+      stats.add(
+        _ChillStat(
+          label: activity,
+          minutes: minutes,
+          icon: config.icon,
+          color: config.color,
+        ),
+      );
+    });
+
+    // Sort by minutes descending
+    stats.sort((a, b) => b.minutes.compareTo(a.minutes));
+
+    return stats;
+  }
 
   int get _doomscrollMinutes =>
       _stats.firstWhere((stat) => stat.label == 'Doomscrolling').minutes;
@@ -108,25 +139,78 @@ class _MyProfilePageState extends State<MyProfilePage>
   int get _totalMinutes =>
       _stats.fold<int>(0, (sum, stat) => sum + stat.minutes);
 
-  void _deleteActivity(int index) {
-    setState(() {
-      _activities.removeAt(index);
-    });
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Activity deleted')));
+  Future<void> _deleteActivity(int index) async {
+    final activity = _activities[index];
+    if (activity.id == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cannot delete activity: missing ID')),
+      );
+      return;
+    }
+
+    try {
+      await _activityService.deleteActivity(activity.id!);
+      setState(() {
+        _activities.removeAt(index);
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Activity deleted')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to delete activity: $e'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _editActivity(int index) async {
     final activity = _activities[index];
+    if (activity.id == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cannot edit activity: missing ID')),
+      );
+      return;
+    }
+
     final result = await _showEditDialog(activity);
     if (result != null) {
-      setState(() {
-        _activities[index] = result;
-      });
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Activity updated')));
+      try {
+        final totalMinutes = result.duration.inMinutes;
+        await _activityService.updateActivity(
+          activityId: activity.id!,
+          title: result.title,
+          activity: result.activity,
+          description: result.description,
+          timeMinutes: totalMinutes,
+          imageUrl: result.mediaUrl,
+        );
+
+        setState(() {
+          _activities[index] = result;
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Activity updated')));
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to update activity: $e'),
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      }
     }
   }
 
@@ -138,15 +222,18 @@ class _MyProfilePageState extends State<MyProfilePage>
 
     final activities = const [
       'Nap on Couch',
-      'Bingewatching classics',
+      'Bingewatching',
       'Netflix marathons',
-      'Doomscrolling cat videos',
+      'Doomscrolling',
       'Snack break',
       'Meditation attempt',
       'Pro-level procrastination',
     ];
 
-    String? selectedActivity = activity.activity;
+    // Ensure the activity value exists in the dropdown list, otherwise set to null
+    String? selectedActivity = activities.contains(activity.activity)
+        ? activity.activity
+        : null;
     int hours = activity.duration.inHours;
     int minutes = activity.duration.inMinutes % 60;
 
@@ -164,6 +251,11 @@ class _MyProfilePageState extends State<MyProfilePage>
                     DropdownButtonFormField<String>(
                       value: selectedActivity,
                       decoration: const InputDecoration(labelText: 'Activity'),
+                      hint: selectedActivity == null
+                          ? Text(
+                              'Select activity (current: ${activity.activity})',
+                            )
+                          : null,
                       items: activities
                           .map(
                             (text) => DropdownMenuItem(
@@ -244,14 +336,16 @@ class _MyProfilePageState extends State<MyProfilePage>
                 ),
                 FilledButton(
                   onPressed: () {
-                    if (selectedActivity != null &&
-                        (hours > 0 || minutes > 0) &&
+                    // Use selectedActivity if available, otherwise keep original activity
+                    final activityType = selectedActivity ?? activity.activity;
+                    if ((hours > 0 || minutes > 0) &&
                         titleController.text.trim().isNotEmpty &&
                         descriptionController.text.trim().isNotEmpty) {
                       Navigator.of(context).pop(
                         ActivityPost(
+                          id: activity.id,
                           author: activity.author,
-                          activity: selectedActivity!,
+                          activity: activityType,
                           title: titleController.text.trim(),
                           description: descriptionController.text.trim(),
                           duration: Duration(hours: hours, minutes: minutes),
@@ -457,6 +551,10 @@ class _MyProfilePageState extends State<MyProfilePage>
     ThemeData theme,
     ColorScheme colors,
   ) {
+    if (_isLoadingActivities) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
     if (_activities.isEmpty) {
       return Center(
         child: Column(
@@ -474,23 +572,32 @@ class _MyProfilePageState extends State<MyProfilePage>
                 color: colors.onSurface.withValues(alpha: 0.6),
               ),
             ),
+            const SizedBox(height: 8),
+            TextButton.icon(
+              onPressed: _loadActivities,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Refresh'),
+            ),
           ],
         ),
       );
     }
 
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(24, 24, 24, 48),
-      itemCount: _activities.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 16),
-      itemBuilder: (context, index) {
-        final activity = _activities[index];
-        return _ActivityCard(
-          activity: activity,
-          onEdit: () => _editActivity(index),
-          onDelete: () => _deleteActivity(index),
-        );
-      },
+    return RefreshIndicator(
+      onRefresh: _loadActivities,
+      child: ListView.separated(
+        padding: const EdgeInsets.fromLTRB(24, 24, 24, 48),
+        itemCount: _activities.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 16),
+        itemBuilder: (context, index) {
+          final activity = _activities[index];
+          return _ActivityCard(
+            activity: activity,
+            onEdit: () => _editActivity(index),
+            onDelete: () => _deleteActivity(index),
+          );
+        },
+      ),
     );
   }
 
@@ -681,10 +788,12 @@ class _ActivityCard extends StatelessWidget {
     switch (activity) {
       case 'Nap on Couch':
         return Icons.weekend;
+      case 'Bingewatching':
       case 'Bingewatching classics':
         return Icons.movie_filter;
       case 'Netflix marathons':
         return Icons.tv;
+      case 'Doomscrolling':
       case 'Doomscrolling cat videos':
         return Icons.swipe_up;
       case 'Snack break':
@@ -702,10 +811,12 @@ class _ActivityCard extends StatelessWidget {
     switch (activity) {
       case 'Nap on Couch':
         return const Color(0xFF2F81F7);
+      case 'Bingewatching':
       case 'Bingewatching classics':
         return const Color(0xFF238636);
       case 'Netflix marathons':
         return const Color(0xFF8957E5);
+      case 'Doomscrolling':
       case 'Doomscrolling cat videos':
         return const Color(0xFFD29922);
       case 'Snack break':
@@ -823,7 +934,7 @@ class _ActivityCard extends StatelessWidget {
               ),
             ],
           ),
-          if (activity.mediaUrl != null) ...[
+          if (activity.mediaUrl != null && activity.mediaUrl!.isNotEmpty) ...[
             const SizedBox(height: 16),
             ClipRRect(
               borderRadius: BorderRadius.circular(16),
@@ -832,11 +943,38 @@ class _ActivityCard extends StatelessWidget {
                 height: 200,
                 width: double.infinity,
                 fit: BoxFit.cover,
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return Container(
+                    height: 200,
+                    color: colors.surfaceContainerHighest,
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        value: loadingProgress.expectedTotalBytes != null
+                            ? loadingProgress.cumulativeBytesLoaded /
+                                  loadingProgress.expectedTotalBytes!
+                            : null,
+                      ),
+                    ),
+                  );
+                },
                 errorBuilder: (context, error, stackTrace) {
                   return Container(
                     height: 200,
                     color: colors.surfaceContainerHighest,
-                    child: const Icon(Icons.broken_image),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.broken_image, size: 48),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Failed to load image',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: colors.onSurface.withValues(alpha: 0.6),
+                          ),
+                        ),
+                      ],
+                    ),
                   );
                 },
               ),

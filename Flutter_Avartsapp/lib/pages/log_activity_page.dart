@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:avarts/services/activity_service.dart';
 import 'package:avarts/services/image_upload_service.dart';
@@ -107,16 +108,13 @@ class _LogActivityPageState extends State<LogActivityPage> {
 
       if (!mounted) return;
 
-      // Show success message
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Activity posted successfully!'),
-          duration: Duration(seconds: 2),
-        ),
-      );
-
-      // Navigate back
-      Navigator.of(context).pop(true);
+      // Navigate back first, then show success message on the previous page
+      // Use SchedulerBinding to avoid Navigator lock issues
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          Navigator.of(context).pop(true);
+        }
+      });
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

@@ -11,7 +11,11 @@ class ActivityPost {
     this.kudos = 0,
     List<String>? comments,
     this.viewerHasKudoed = false,
+    this.id,
   }) : comments = comments ?? <String>[];
+
+  /// Optional ID from database (used for updates/deletes)
+  final String? id;
 
   /// Username of the post author
   final String author;

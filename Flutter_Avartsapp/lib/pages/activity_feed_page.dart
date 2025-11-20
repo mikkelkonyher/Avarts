@@ -54,20 +54,22 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
   ];
 
   Future<void> _openLogActivity() async {
-    final newPost = await Navigator.of(context).push<ActivityPost>(
+    final result = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) =>
             LogActivityPage(currentUser: widget.loginResult.displayName),
       ),
     );
 
-    if (newPost != null) {
-      setState(() {
-        _posts.insert(0, newPost);
-      });
+    if (result == true) {
+      // Activity was posted successfully
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Activity posted to your wall!')),
+        const SnackBar(
+          content: Text('Activity posted successfully!'),
+          duration: Duration(seconds: 2),
+        ),
       );
+      // Note: The activity is already in the database, so you might want to refresh the feed here
     }
   }
 
