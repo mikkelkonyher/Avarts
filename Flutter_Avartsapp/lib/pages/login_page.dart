@@ -1,8 +1,12 @@
+// Flutter imports
 import 'package:flutter/material.dart';
+
+// Project imports
 import 'package:flutter_avartsproto/pages/register_page.dart';
 import 'package:flutter_avartsproto/pages/activity_feed_page.dart';
 import 'package:flutter_avartsproto/services/api_service.dart';
 
+/// Login page where users authenticate with email and password
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -11,13 +15,18 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
+  // Form and input controllers
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+
+  // Services and state
   final ApiService _apiService = ApiService();
   bool _isLoading = false;
   bool _obscurePassword = true;
 
+  /// Handles the login form submission
+  /// Validates form, calls API, and navigates to activity feed on success
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -54,6 +63,7 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   void dispose() {
+    // Clean up controllers to prevent memory leaks
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -74,6 +84,7 @@ class _LoginPageState extends State<LoginPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
+                  // App branding badge
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 20,
@@ -93,6 +104,8 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                   ),
                   const SizedBox(height: 16),
+
+                  // Welcome text
                   Text(
                     'Welcome back, slacker',
                     style: theme.textTheme.headlineMedium?.copyWith(
@@ -109,6 +122,8 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                   ),
                   const SizedBox(height: 32),
+
+                  // Login form card
                   Card(
                     child: Padding(
                       padding: const EdgeInsets.all(24),
@@ -117,6 +132,7 @@ class _LoginPageState extends State<LoginPage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
+                            // Email input field
                             TextFormField(
                               controller: _emailController,
                               decoration: const InputDecoration(
@@ -129,6 +145,8 @@ class _LoginPageState extends State<LoginPage> {
                                   : null,
                             ),
                             const SizedBox(height: 16),
+
+                            // Password input field with visibility toggle
                             TextFormField(
                               controller: _passwordController,
                               decoration: InputDecoration(
@@ -153,6 +171,8 @@ class _LoginPageState extends State<LoginPage> {
                                   : null,
                             ),
                             const SizedBox(height: 24),
+
+                            // Login button
                             ElevatedButton.icon(
                               onPressed: _isLoading ? null : _handleLogin,
                               icon: _isLoading
@@ -169,6 +189,8 @@ class _LoginPageState extends State<LoginPage> {
                               ),
                             ),
                             const SizedBox(height: 12),
+
+                            // Link to registration page
                             TextButton(
                               onPressed: _isLoading
                                   ? null

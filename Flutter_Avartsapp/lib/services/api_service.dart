@@ -1,27 +1,46 @@
+// Dart imports
 import 'dart:convert';
 import 'dart:io';
 
+// Package imports
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
+/// Custom exception for API-related errors
 class ApiException implements Exception {
   ApiException(this.message, {this.statusCode});
 
+  /// Error message describing what went wrong
   final String message;
+
+  /// HTTP status code (if available)
   final int? statusCode;
 
   @override
   String toString() => 'ApiException($statusCode): $message';
 }
 
+/// Result object returned from a successful login attempt
 class LoginResult {
   LoginResult({required this.raw, this.token, this.user, this.message});
 
+  /// Raw response data from the API
   final Map<String, dynamic> raw;
+
+  /// Authentication token (if provided)
   final String? token;
+
+  /// User data object (if provided)
   final Map<String, dynamic>? user;
+
+  /// Optional message from the API
   final String? message;
 
+  /// Gets a display name for the user, trying multiple fallback strategies:
+  /// 1. userName field
+  /// 2. firstName field
+  /// 3. Email username (part before @)
+  /// 4. Default fallback
   String get displayName {
     if (user == null) return 'LazyStrava Legend';
 
@@ -48,11 +67,15 @@ class LoginResult {
   }
 }
 
+/// Service class for making API requests to the backend
 class ApiService {
   ApiService({http.Client? client}) : _client = client ?? http.Client();
 
+  /// HTTP client for making requests
   final http.Client _client;
 
+  /// Gets the base URL from environment variables
+  /// Throws ApiException if BASE_URL is not configured
   String get _baseUrl {
     final value = dotenv.env['BASE_URL'];
     if (value == null || value.isEmpty) {
@@ -62,16 +85,21 @@ class ApiService {
     return value.toString().trim().replaceAll(RegExp(r'/$'), '');
   }
 
+  /// Builds a complete URI from a path
+  /// Ensures the path starts with a forward slash
   Uri _buildUri(String path) {
-    // Ensure path starts with /
     final cleanPath = path.startsWith('/') ? path : '/$path';
     return Uri.parse('$_baseUrl$cleanPath');
   }
 
+  /// Default HTTP headers for API requests
   Map<String, String> get _defaultHeaders => const {
     'Content-Type': 'application/json; charset=UTF-8',
   };
 
+  /// Registers a new user with the API
+  ///
+  /// Throws [ApiException] if registration fails or network error occurs
   Future<void> registerUser({
     required String userName,
     required String firstName,
@@ -139,6 +167,10 @@ class ApiService {
     }
   }
 
+  /// Logs in a user with email and password
+  ///
+  /// Returns [LoginResult] on success
+  /// Throws [ApiException] if login fails or network error occurs
   Future<LoginResult> login({
     required String email,
     required String password,
@@ -151,7 +183,7 @@ class ApiService {
             body: jsonEncode({'email': email, 'password': password}),
           )
           .timeout(
-            const Duration(seconds: 300),
+            const Duration(seconds: 30),
             onTimeout: () {
               throw ApiException(
                 'Request timeout - please check your internet connection',
@@ -215,6 +247,8 @@ class ApiService {
     }
   }
 
+  /// Extracts error message from API response body
+  /// Tries to parse JSON and extract 'message' field, falls back to raw body
   String _extractErrorMessage(String body) {
     if (body.isEmpty) return 'Unknown error';
     try {

@@ -1,21 +1,30 @@
+// Flutter imports
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+
+// Project imports
 import 'package:flutter_avartsproto/pages/login_page.dart';
 import 'package:flutter_avartsproto/pages/register_page.dart';
 
+/// Main background color for the app
 const Color _scaffoldColor = Color(0xFF0D1117);
 
+/// Application entry point
+/// Initializes Flutter bindings and loads environment variables before starting the app
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: '.env');
   runApp(const LazyStravaApp());
 }
 
+/// Root widget of the application
+/// Configures the app theme and routing
 class LazyStravaApp extends StatelessWidget {
   const LazyStravaApp({super.key});
 
   @override
   Widget build(BuildContext context) {
+    // Configure dark theme color scheme
     final darkScheme =
         ColorScheme.fromSeed(
           seedColor: const Color(0xFF2F81F7),
@@ -38,12 +47,16 @@ class LazyStravaApp extends StatelessWidget {
         colorScheme: darkScheme,
         scaffoldBackgroundColor: _scaffoldColor,
         fontFamily: 'SF Pro Display',
+
+        // AppBar theme configuration
         appBarTheme: AppBarTheme(
           backgroundColor: darkScheme.surface,
           foregroundColor: darkScheme.onSurface,
           elevation: 0,
           centerTitle: true,
         ),
+
+        // Card theme configuration
         cardTheme: CardThemeData(
           color: darkScheme.surface,
           margin: EdgeInsets.zero,
@@ -51,6 +64,8 @@ class LazyStravaApp extends StatelessWidget {
             borderRadius: BorderRadius.circular(24),
           ),
         ),
+
+        // Input field theme configuration
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
           fillColor: _scaffoldColor,
@@ -75,6 +90,8 @@ class LazyStravaApp extends StatelessWidget {
             vertical: 18,
           ),
         ),
+
+        // Button themes
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
             backgroundColor: darkScheme.primary,
@@ -92,11 +109,15 @@ class LazyStravaApp extends StatelessWidget {
             textStyle: const TextStyle(fontWeight: FontWeight.w500),
           ),
         ),
+
+        // Divider theme
         dividerTheme: DividerThemeData(
           color: darkScheme.surfaceContainerHighest,
           thickness: 1,
         ),
       ),
+
+      // Routing configuration
       initialRoute: '/login',
       routes: {
         '/login': (_) => const LoginPage(),
