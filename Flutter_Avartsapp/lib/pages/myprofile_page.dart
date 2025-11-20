@@ -3,11 +3,77 @@ import 'package:avarts/pages/earned_badges_page.dart';
 import 'package:avarts/pages/friends_page.dart';
 import 'package:avarts/pages/login_page.dart';
 import 'package:avarts/services/auth_service.dart';
+import 'package:avarts/models/activity_post.dart';
 
-class MyProfilePage extends StatelessWidget {
+class MyProfilePage extends StatefulWidget {
   const MyProfilePage({super.key, required this.loginResult});
 
   final LoginResult loginResult;
+
+  @override
+  State<MyProfilePage> createState() => _MyProfilePageState();
+}
+
+class _MyProfilePageState extends State<MyProfilePage>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  // Dummy activities data
+  List<ActivityPost> _activities = [
+    ActivityPost(
+      author: 'You',
+      activity: 'Nap on Couch',
+      title: 'Afternoon Power Nap',
+      description:
+          'Perfect 2-hour nap that recharged my batteries. Best decision of the day!',
+      duration: const Duration(hours: 2, minutes: 0),
+      createdAt: DateTime.now().subtract(const Duration(days: 1)),
+      mediaUrl:
+          'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=800&q=80',
+    ),
+    ActivityPost(
+      author: 'You',
+      activity: 'Bingewatching classics',
+      title: 'Marathon Session',
+      description: 'Watched an entire season of my favorite show. No regrets!',
+      duration: const Duration(hours: 5, minutes: 30),
+      createdAt: DateTime.now().subtract(const Duration(days: 2)),
+      mediaUrl:
+          'https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=800&q=80',
+    ),
+    ActivityPost(
+      author: 'You',
+      activity: 'Doomscrolling cat videos',
+      title: 'Cat Video Binge',
+      description:
+          'Spent way too much time watching adorable cats. Worth every minute!',
+      duration: const Duration(hours: 1, minutes: 45),
+      createdAt: DateTime.now().subtract(const Duration(days: 3)),
+    ),
+    ActivityPost(
+      author: 'You',
+      activity: 'Netflix marathons',
+      title: 'Weekend Chill',
+      description:
+          'Perfect weekend activity - just me, my couch, and endless content.',
+      duration: const Duration(hours: 4, minutes: 15),
+      createdAt: DateTime.now().subtract(const Duration(days: 5)),
+      mediaUrl:
+          'https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&w=800&q=80',
+    ),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
 
   List<_ChillStat> get _stats => const [
     _ChillStat(
@@ -42,6 +108,169 @@ class MyProfilePage extends StatelessWidget {
   int get _totalMinutes =>
       _stats.fold<int>(0, (sum, stat) => sum + stat.minutes);
 
+  void _deleteActivity(int index) {
+    setState(() {
+      _activities.removeAt(index);
+    });
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Activity deleted')));
+  }
+
+  Future<void> _editActivity(int index) async {
+    final activity = _activities[index];
+    final result = await _showEditDialog(activity);
+    if (result != null) {
+      setState(() {
+        _activities[index] = result;
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Activity updated')));
+    }
+  }
+
+  Future<ActivityPost?> _showEditDialog(ActivityPost activity) async {
+    final titleController = TextEditingController(text: activity.title);
+    final descriptionController = TextEditingController(
+      text: activity.description,
+    );
+
+    final activities = const [
+      'Nap on Couch',
+      'Bingewatching classics',
+      'Netflix marathons',
+      'Doomscrolling cat videos',
+      'Snack break',
+      'Meditation attempt',
+      'Pro-level procrastination',
+    ];
+
+    String? selectedActivity = activity.activity;
+    int hours = activity.duration.inHours;
+    int minutes = activity.duration.inMinutes % 60;
+
+    return showDialog<ActivityPost>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Edit Activity'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    DropdownButtonFormField<String>(
+                      value: selectedActivity,
+                      decoration: const InputDecoration(labelText: 'Activity'),
+                      items: activities
+                          .map(
+                            (text) => DropdownMenuItem(
+                              value: text,
+                              child: Text(text),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (value) {
+                        setDialogState(() {
+                          selectedActivity = value;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: DropdownButtonFormField<int>(
+                            value: hours,
+                            decoration: const InputDecoration(
+                              labelText: 'Hours',
+                            ),
+                            items: List.generate(
+                              13,
+                              (i) =>
+                                  DropdownMenuItem(value: i, child: Text('$i')),
+                            ),
+                            onChanged: (value) {
+                              setDialogState(() {
+                                hours = value ?? hours;
+                              });
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: DropdownButtonFormField<int>(
+                            value: minutes,
+                            decoration: const InputDecoration(
+                              labelText: 'Minutes',
+                            ),
+                            items: const [
+                              DropdownMenuItem(value: 0, child: Text('00')),
+                              DropdownMenuItem(value: 15, child: Text('15')),
+                              DropdownMenuItem(value: 30, child: Text('30')),
+                              DropdownMenuItem(value: 45, child: Text('45')),
+                            ],
+                            onChanged: (value) {
+                              setDialogState(() {
+                                minutes = value ?? minutes;
+                              });
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: titleController,
+                      decoration: const InputDecoration(labelText: 'Title'),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: descriptionController,
+                      maxLines: 3,
+                      decoration: const InputDecoration(
+                        labelText: 'Description',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    if (selectedActivity != null &&
+                        (hours > 0 || minutes > 0) &&
+                        titleController.text.trim().isNotEmpty &&
+                        descriptionController.text.trim().isNotEmpty) {
+                      Navigator.of(context).pop(
+                        ActivityPost(
+                          author: activity.author,
+                          activity: selectedActivity!,
+                          title: titleController.text.trim(),
+                          description: descriptionController.text.trim(),
+                          duration: Duration(hours: hours, minutes: minutes),
+                          createdAt: activity.createdAt,
+                          mediaUrl: activity.mediaUrl,
+                        ),
+                      );
+                    }
+                  },
+                  child: const Text('Save'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -69,136 +298,199 @@ class MyProfilePage extends StatelessWidget {
             },
           ),
         ],
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(24, 24, 24, 48),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _HeroCard(
-              name: loginResult.displayName,
-              totalMinutes: _totalMinutes,
-            ),
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: [
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              FriendsPage(currentUser: loginResult.displayName),
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.people_alt_rounded),
-                    label: const Text('Find friends & chat'),
-                  ),
-                ),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => EarnedBadgesPage(
-                            doomscrollMinutes: _doomscrollMinutes,
-                          ),
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.emoji_events_outlined),
-                    label: const Text('View earned badges'),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 32),
-            Text(
-              'Chill analytics',
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 12),
-            ..._stats.map((stat) {
-              final ratio = stat.minutes / _totalMinutes;
-              final isDoomscrolling = stat.label == 'Doomscrolling';
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: Container(
-                  padding: const EdgeInsets.all(18),
-                  decoration: BoxDecoration(
-                    color: colors.surfaceContainerHighest.withValues(
-                      alpha: 0.7,
-                    ),
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: colors.surfaceContainerHighest),
-                  ),
-                  child: Column(
-                    children: [
-                      Row(
-                        children: [
-                          CircleAvatar(
-                            radius: 26,
-                            backgroundColor: stat.color.withValues(alpha: 0.18),
-                            child: Icon(stat.icon, color: stat.color),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  stat.label,
-                                  style: theme.textTheme.titleMedium,
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  _formatMinutes(stat.minutes),
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: colors.onSurface.withValues(
-                                      alpha: 0.7,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Text(
-                            '${(ratio * 100).round()}%',
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(999),
-                        child: LinearProgressIndicator(
-                          value: ratio,
-                          minHeight: 6,
-                          color: stat.color,
-                          backgroundColor: colors.surface,
-                        ),
-                      ),
-                      if (isDoomscrolling) ...[
-                        const SizedBox(height: 16),
-                        _DoomscrollingMessage(minutes: stat.minutes),
-                      ],
-                    ],
-                  ),
-                ),
-              );
-            }),
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(text: 'My Profile'),
+            Tab(text: 'Activities'),
           ],
         ),
       ),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          // Badges Earned Tab
+          SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(24, 24, 24, 48),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _HeroCard(
+                  name: widget.loginResult.displayName,
+                  totalMinutes: _totalMinutes,
+                ),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => FriendsPage(
+                                currentUser: widget.loginResult.displayName,
+                              ),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.people_alt_rounded),
+                        label: const Text('Find friends & chat'),
+                      ),
+                    ),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => EarnedBadgesPage(
+                                doomscrollMinutes: _doomscrollMinutes,
+                              ),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.emoji_events_outlined),
+                        label: const Text('View earned badges'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 32),
+                Text(
+                  'Chill analytics',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                ..._stats.map((stat) {
+                  final ratio = stat.minutes / _totalMinutes;
+                  final isDoomscrolling = stat.label == 'Doomscrolling';
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: Container(
+                      padding: const EdgeInsets.all(18),
+                      decoration: BoxDecoration(
+                        color: colors.surfaceContainerHighest.withValues(
+                          alpha: 0.7,
+                        ),
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(
+                          color: colors.surfaceContainerHighest,
+                        ),
+                      ),
+                      child: Column(
+                        children: [
+                          Row(
+                            children: [
+                              CircleAvatar(
+                                radius: 26,
+                                backgroundColor: stat.color.withValues(
+                                  alpha: 0.18,
+                                ),
+                                child: Icon(stat.icon, color: stat.color),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      stat.label,
+                                      style: theme.textTheme.titleMedium,
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      _formatMinutes(stat.minutes),
+                                      style: theme.textTheme.bodySmall
+                                          ?.copyWith(
+                                            color: colors.onSurface.withValues(
+                                              alpha: 0.7,
+                                            ),
+                                          ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Text(
+                                '${(ratio * 100).round()}%',
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(999),
+                            child: LinearProgressIndicator(
+                              value: ratio,
+                              minHeight: 6,
+                              color: stat.color,
+                              backgroundColor: colors.surface,
+                            ),
+                          ),
+                          if (isDoomscrolling) ...[
+                            const SizedBox(height: 16),
+                            _DoomscrollingMessage(minutes: stat.minutes),
+                          ],
+                        ],
+                      ),
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ),
+          // Activities Tab
+          _buildActivitiesTab(context, theme, colors),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActivitiesTab(
+    BuildContext context,
+    ThemeData theme,
+    ColorScheme colors,
+  ) {
+    if (_activities.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.inbox_outlined,
+              size: 64,
+              color: colors.onSurface.withValues(alpha: 0.3),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'No activities logged yet',
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: colors.onSurface.withValues(alpha: 0.6),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 48),
+      itemCount: _activities.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 16),
+      itemBuilder: (context, index) {
+        final activity = _activities[index];
+        return _ActivityCard(
+          activity: activity,
+          onEdit: () => _editActivity(index),
+          onDelete: () => _deleteActivity(index),
+        );
+      },
     );
   }
 
@@ -345,6 +637,240 @@ class _DoomscrollingMessage extends StatelessWidget {
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActivityCard extends StatelessWidget {
+  const _ActivityCard({
+    required this.activity,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final ActivityPost activity;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  String _formatDuration(Duration duration) {
+    final hours = duration.inHours;
+    final minutes = duration.inMinutes % 60;
+    if (hours == 0) return '$minutes min';
+    return '${hours}h ${minutes}m';
+  }
+
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final difference = now.difference(date);
+
+    if (difference.inDays == 0) {
+      return 'Today';
+    } else if (difference.inDays == 1) {
+      return 'Yesterday';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays} days ago';
+    } else {
+      return '${date.day}/${date.month}/${date.year}';
+    }
+  }
+
+  IconData _getActivityIcon(String activity) {
+    switch (activity) {
+      case 'Nap on Couch':
+        return Icons.weekend;
+      case 'Bingewatching classics':
+        return Icons.movie_filter;
+      case 'Netflix marathons':
+        return Icons.tv;
+      case 'Doomscrolling cat videos':
+        return Icons.swipe_up;
+      case 'Snack break':
+        return Icons.local_pizza;
+      case 'Meditation attempt':
+        return Icons.self_improvement;
+      case 'Pro-level procrastination':
+        return Icons.hourglass_empty;
+      default:
+        return Icons.fitness_center;
+    }
+  }
+
+  Color _getActivityColor(String activity) {
+    switch (activity) {
+      case 'Nap on Couch':
+        return const Color(0xFF2F81F7);
+      case 'Bingewatching classics':
+        return const Color(0xFF238636);
+      case 'Netflix marathons':
+        return const Color(0xFF8957E5);
+      case 'Doomscrolling cat videos':
+        return const Color(0xFFD29922);
+      case 'Snack break':
+        return const Color(0xFFED8B00);
+      case 'Meditation attempt':
+        return const Color(0xFF3FB950);
+      case 'Pro-level procrastination':
+        return const Color(0xFFFF6B6B);
+      default:
+        return const Color(0xFF2F81F7);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final activityColor = _getActivityColor(activity.activity);
+    final activityIcon = _getActivityIcon(activity.activity);
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerHighest.withValues(alpha: 0.7),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: colors.surfaceContainerHighest),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(
+                radius: 24,
+                backgroundColor: activityColor.withValues(alpha: 0.18),
+                child: Icon(activityIcon, color: activityColor, size: 24),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            activity.title,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        PopupMenuButton(
+                          icon: const Icon(Icons.more_vert),
+                          itemBuilder: (context) => [
+                            PopupMenuItem(
+                              child: const Row(
+                                children: [
+                                  Icon(Icons.edit, size: 20),
+                                  SizedBox(width: 8),
+                                  Text('Edit'),
+                                ],
+                              ),
+                              onTap: () {
+                                Future.delayed(
+                                  const Duration(milliseconds: 100),
+                                  onEdit,
+                                );
+                              },
+                            ),
+                            PopupMenuItem(
+                              child: const Row(
+                                children: [
+                                  Icon(
+                                    Icons.delete,
+                                    size: 20,
+                                    color: Colors.red,
+                                  ),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    'Delete',
+                                    style: TextStyle(color: Colors.red),
+                                  ),
+                                ],
+                              ),
+                              onTap: () {
+                                Future.delayed(
+                                  const Duration(milliseconds: 100),
+                                  onDelete,
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      activity.activity,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: activityColor,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      activity.description,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: colors.onSurface.withValues(alpha: 0.8),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (activity.mediaUrl != null) ...[
+            const SizedBox(height: 16),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Image.network(
+                activity.mediaUrl!,
+                height: 200,
+                width: double.infinity,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    height: 200,
+                    color: colors.surfaceContainerHighest,
+                    child: const Icon(Icons.broken_image),
+                  );
+                },
+              ),
+            ),
+          ],
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Icon(
+                Icons.access_time,
+                size: 16,
+                color: colors.onSurface.withValues(alpha: 0.6),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                _formatDuration(activity.duration),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colors.onSurface.withValues(alpha: 0.6),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Icon(
+                Icons.calendar_today,
+                size: 16,
+                color: colors.onSurface.withValues(alpha: 0.6),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                _formatDate(activity.createdAt),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colors.onSurface.withValues(alpha: 0.6),
+                ),
+              ),
+            ],
           ),
         ],
       ),
