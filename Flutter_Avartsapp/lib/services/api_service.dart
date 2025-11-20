@@ -42,7 +42,7 @@ class LoginResult {
   /// 3. Email username (part before @)
   /// 4. Default fallback
   String get displayName {
-    if (user == null) return 'LazyStrava Legend';
+    if (user == null) return 'Avarts Legend';
 
     // Try userName first
     final userName = user!['userName'];
@@ -63,7 +63,7 @@ class LoginResult {
     }
 
     // Fallback to full email or default
-    return email?.toString() ?? 'LazyStrava Legend';
+    return email?.toString() ?? 'Avarts Legend';
   }
 }
 

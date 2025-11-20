@@ -18,7 +18,7 @@ void main() {
 
   testWidgets('App loads login page', (WidgetTester tester) async {
     // Build our app and trigger a frame.
-    await tester.pumpWidget(const LazyStravaApp());
+    await tester.pumpWidget(const AvartsApp());
     await tester.pumpAndSettle();
 
     // Verify that login page is shown

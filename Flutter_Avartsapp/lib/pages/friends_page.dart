@@ -115,7 +115,7 @@ class _FriendsPageState extends State<FriendsPage> {
               children: [
                 _SectionHeading(
                   title: 'Suggested users',
-                  subtitle: 'Tap add to queue them up before the API exists 💪',
+                  subtitle: 'Tap add to queue them up before the API exists',
                 ),
                 const SizedBox(height: 12),
                 ..._filteredUsers.map((profile) {

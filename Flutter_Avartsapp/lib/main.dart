@@ -14,13 +14,13 @@ const Color _scaffoldColor = Color(0xFF0D1117);
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: '.env');
-  runApp(const LazyStravaApp());
+  runApp(const AvartsApp());
 }
 
 /// Root widget of the application
 /// Configures the app theme and routing
-class LazyStravaApp extends StatelessWidget {
-  const LazyStravaApp({super.key});
+class AvartsApp extends StatelessWidget {
+  const AvartsApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -40,7 +40,7 @@ class LazyStravaApp extends StatelessWidget {
         );
 
     return MaterialApp(
-      title: 'LazyStrava',
+      title: 'Avarts',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
