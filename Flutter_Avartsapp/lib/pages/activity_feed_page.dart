@@ -3,6 +3,7 @@ import 'package:avarts/models/activity_post.dart';
 import 'package:avarts/pages/myprofile_page.dart';
 import 'package:avarts/pages/log_activity_page.dart';
 import 'package:avarts/services/auth_service.dart';
+import 'package:avarts/services/activity_service.dart';
 
 class ActivityFeedPage extends StatefulWidget {
   const ActivityFeedPage({super.key, required this.loginResult});
@@ -14,44 +15,51 @@ class ActivityFeedPage extends StatefulWidget {
 }
 
 class _ActivityFeedPageState extends State<ActivityFeedPage> {
-  final List<ActivityPost> _posts = [
-    ActivityPost(
-      author: 'The Dude',
-      activity: 'Nap on Couch',
-      title: 'Power nap champion',
-      description:
-          'Managed a 45 min nap between meetings. Feeling refreshed-ish.',
-      duration: const Duration(hours: 0, minutes: 45),
-      createdAt: DateTime.now().subtract(const Duration(minutes: 20)),
-      mediaUrl:
-          'https://images.unsplash.com/photo-1518976024611-28bf4b48222e?auto=format&fit=crop&w=800&q=80',
-      kudos: 12,
-      comments: ['CatVideoCarl: Inspirational stuff', 'Lazy Legend: Goals'],
-    ),
-    ActivityPost(
-      author: 'FatFuck',
-      activity: 'Doomscrolling',
-      title: 'Important research',
-      description: 'Studied 120 new cat memes for science. Zero regrets.',
-      duration: const Duration(hours: 2, minutes: 10),
-      createdAt: DateTime.now().subtract(const Duration(hours: 3, minutes: 5)),
-      mediaUrl:
-          'https://images.unsplash.com/photo-1518791841217-8f162f1e1131?auto=format&fit=crop&w=800&q=80',
-      kudos: 42,
-      comments: ['Snacky Jack: Vital contribution to society'],
-    ),
-    ActivityPost(
-      author: 'Naptorius Nate',
-      activity: 'Bingewatching',
-      title: 'Finished another trilogy',
-      description: 'All the godfather movies in one sitting. What a journey.',
-      duration: const Duration(hours: 9),
-      createdAt: DateTime.now().subtract(const Duration(hours: 8)),
-      mediaUrl:
-          'https://images.unsplash.com/photo-1461151304267-38535e780c79?auto=format&fit=crop&w=800&q=80',
-      kudos: 7,
-    ),
-  ];
+  final ActivityService _activityService = ActivityService();
+  List<ActivityPost> _posts = [];
+  bool _isLoading = true;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFeed();
+  }
+
+  Future<void> _loadFeed() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final activities = await _activityService.getFeedActivities();
+      
+      setState(() {
+        _posts = activities.map((activity) {
+          return ActivityPost(
+            id: activity['id'] as String,
+            author: activity['author_name'] as String? ?? 'User',
+            activity: activity['activity'] as String? ?? '',
+            title: activity['title'] as String? ?? '',
+            description: activity['description'] as String? ?? '',
+            duration: Duration(minutes: activity['time_minutes'] as int? ?? 0),
+            createdAt: DateTime.parse(activity['created_at'] as String),
+            mediaUrl: activity['image_url'] as String?,
+            kudos: activity['kudos_count'] as int? ?? 0,
+            comments: List<String>.from(activity['comments'] as List? ?? []),
+            viewerHasKudoed: activity['has_kudoed'] as bool? ?? false,
+          );
+        }).toList();
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Failed to load feed: ${e.toString()}';
+        _isLoading = false;
+      });
+    }
+  }
 
   Future<void> _openLogActivity() async {
     final result = await Navigator.of(context).push<bool>(
@@ -69,7 +77,8 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
           duration: Duration(seconds: 2),
         ),
       );
-      // Note: The activity is already in the database, so you might want to refresh the feed here
+      // Refresh the feed to show the new activity
+      await _loadFeed();
     }
   }
 
@@ -81,15 +90,28 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
     );
   }
 
-  void _giveKudos(ActivityPost post) {
-    if (post.viewerHasKudoed) return;
-    setState(() {
-      post.kudos += 1;
-      post.viewerHasKudoed = true;
-    });
+  Future<void> _giveKudos(ActivityPost post) async {
+    if (post.id == null) return;
+    
+    try {
+      await _activityService.addKudos(post.id!);
+      // Refresh the feed to get updated kudos count
+      await _loadFeed();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to give kudos: ${e.toString()}'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _addComment(ActivityPost post) async {
+    if (post.id == null) return;
+    
     final controller = TextEditingController();
     final result = await showDialog<String>(
       context: context,
@@ -100,6 +122,7 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
             controller: controller,
             autofocus: true,
             decoration: const InputDecoration(hintText: 'What did you think?'),
+            maxLines: 3,
           ),
           actions: [
             TextButton(
@@ -117,9 +140,23 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
     );
 
     if (result != null && result.isNotEmpty) {
-      setState(() {
-        post.comments.add('${widget.loginResult.displayName}: $result');
-      });
+      try {
+        await _activityService.addComment(
+          activityId: post.id!,
+          content: result,
+        );
+        // Refresh the feed to show the new comment
+        await _loadFeed();
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to post comment: ${e.toString()}'),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      }
     }
   }
 
@@ -142,25 +179,74 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
         label: const Text('Log activity'),
       ),
       body: RefreshIndicator(
-        onRefresh: () async {
-          await Future<void>.delayed(const Duration(milliseconds: 600));
-        },
-        child: ListView.builder(
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 120),
-          itemCount: _posts.length,
-          itemBuilder: (context, index) {
-            final post = _posts[index];
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 18),
-              child: _ActivityPostCard(
-                post: post,
-                onGiveKudos: () => _giveKudos(post),
-                onComment: () => _addComment(post),
-                viewerName: widget.loginResult.displayName,
-              ),
-            );
-          },
-        ),
+        onRefresh: _loadFeed,
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : _errorMessage != null
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          _errorMessage!,
+                          style: Theme.of(context).textTheme.bodyLarge,
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 16),
+                        FilledButton(
+                          onPressed: _loadFeed,
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    ),
+                  )
+                : _posts.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.feed_outlined,
+                              size: 64,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurface
+                                  .withValues(alpha: 0.5),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'No activities yet',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Be the first to log an activity!',
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurface
+                                        .withValues(alpha: 0.7),
+                                  ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.fromLTRB(24, 24, 24, 120),
+                        itemCount: _posts.length,
+                        itemBuilder: (context, index) {
+                          final post = _posts[index];
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 18),
+                            child: _ActivityPostCard(
+                              post: post,
+                              onGiveKudos: () => _giveKudos(post),
+                              onComment: () => _addComment(post),
+                              viewerName: widget.loginResult.displayName,
+                            ),
+                          );
+                        },
+                      ),
       ),
     );
   }
