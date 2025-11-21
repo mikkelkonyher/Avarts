@@ -362,13 +362,21 @@ class ActivityService {
         // Get comments for this activity
         final activityComments = commentsByActivity[activityId] ?? [];
 
-        // Format comments with user names
-        final List<String> formattedComments = [];
+        // Format comments with full data including IDs
+        final List<Map<String, dynamic>> commentData = [];
         for (final comment in activityComments) {
+          final commentId = comment['id'] as String;
           final commentUserId = comment['user_id'] as String;
           final commentContent = comment['content'] as String;
+          final commentCreatedAt = comment['created_at'] as String;
           final authorName = getUserDisplayName(commentUserId);
-          formattedComments.add('$authorName: $commentContent');
+          commentData.add({
+            'id': commentId,
+            'user_id': commentUserId,
+            'author': authorName,
+            'content': commentContent,
+            'created_at': commentCreatedAt,
+          });
         }
 
         // Get author display name
@@ -380,7 +388,7 @@ class ActivityService {
           'author_name': authorName,
           'kudos_count': kudosCount,
           'has_kudoed': hasKudoed,
-          'comments': formattedComments,
+          'comments': commentData,
         });
       }
 
@@ -465,6 +473,33 @@ class ActivityService {
       throw Exception('Failed to add comment: ${e.message}');
     } on Exception catch (e) {
       throw Exception('Failed to add comment: ${e.toString()}');
+    }
+  }
+
+  /// Deletes a comment
+  ///
+  /// [commentId] - ID of the comment to delete
+  ///
+  /// Throws [Exception] if deletion fails
+  Future<void> deleteComment(String commentId) async {
+    final userId = currentUserId;
+    if (userId == null) {
+      throw Exception('User must be logged in to delete comments');
+    }
+
+    try {
+      await client
+          .from('activity_comments')
+          .delete()
+          .eq('id', commentId)
+          .eq(
+            'user_id',
+            userId,
+          ); // Ensure user can only delete their own comments
+    } on PostgrestException catch (e) {
+      throw Exception('Failed to delete comment: ${e.message}');
+    } on Exception catch (e) {
+      throw Exception('Failed to delete comment: ${e.toString()}');
     }
   }
 }

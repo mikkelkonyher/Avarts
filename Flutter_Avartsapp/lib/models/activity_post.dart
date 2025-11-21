@@ -1,3 +1,29 @@
+/// Model representing a comment on an activity post
+class ActivityComment {
+  ActivityComment({
+    required this.id,
+    required this.userId,
+    required this.author,
+    required this.content,
+    required this.createdAt,
+  });
+
+  /// Comment ID from database
+  final String id;
+
+  /// User ID of the comment author
+  final String userId;
+
+  /// Display name of the comment author
+  final String author;
+
+  /// Comment content
+  final String content;
+
+  /// When the comment was created
+  final DateTime createdAt;
+}
+
 /// Model representing an activity post in the feed
 class ActivityPost {
   ActivityPost({
@@ -9,10 +35,10 @@ class ActivityPost {
     required this.createdAt,
     this.mediaUrl,
     this.kudos = 0,
-    List<String>? comments,
+    List<ActivityComment>? comments,
     this.viewerHasKudoed = false,
     this.id,
-  }) : comments = comments ?? <String>[];
+  }) : comments = comments ?? <ActivityComment>[];
 
   /// Optional ID from database (used for updates/deletes)
   final String? id;
@@ -42,7 +68,7 @@ class ActivityPost {
   int kudos;
 
   /// List of comments on the post
-  final List<String> comments;
+  final List<ActivityComment> comments;
 
   /// Whether the current viewer has given kudos to this post
   bool viewerHasKudoed;

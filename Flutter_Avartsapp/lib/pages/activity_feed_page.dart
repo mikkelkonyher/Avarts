@@ -37,6 +37,27 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
       
       setState(() {
         _posts = activities.map((activity) {
+          final commentsData = activity['comments'];
+          final List<ActivityComment> comments;
+          
+          if (commentsData is List) {
+            comments = commentsData
+                .where((comment) => comment is Map<String, dynamic>)
+                .map<ActivityComment>((comment) {
+                  final commentMap = comment as Map<String, dynamic>;
+                  return ActivityComment(
+                    id: commentMap['id'] as String,
+                    userId: commentMap['user_id'] as String,
+                    author: commentMap['author'] as String,
+                    content: commentMap['content'] as String,
+                    createdAt: DateTime.parse(commentMap['created_at'] as String),
+                  );
+                })
+                .toList();
+          } else {
+            comments = <ActivityComment>[];
+          }
+          
           return ActivityPost(
             id: activity['id'] as String,
             author: activity['author_name'] as String? ?? 'User',
@@ -47,7 +68,7 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
             createdAt: DateTime.parse(activity['created_at'] as String),
             mediaUrl: activity['image_url'] as String?,
             kudos: activity['kudos_count'] as int? ?? 0,
-            comments: List<String>.from(activity['comments'] as List? ?? []),
+            comments: comments,
             viewerHasKudoed: activity['has_kudoed'] as bool? ?? false,
           );
         }).toList();
@@ -93,11 +114,39 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
   Future<void> _giveKudos(ActivityPost post) async {
     if (post.id == null) return;
     
+    // Optimistically update UI
+    final index = _posts.indexWhere((p) => p.id == post.id);
+    if (index == -1) return;
+    
+    final updatedPost = _posts[index];
+    final wasKudoed = updatedPost.viewerHasKudoed;
+    
+    setState(() {
+      if (wasKudoed) {
+        // Remove kudo
+        updatedPost.viewerHasKudoed = false;
+        updatedPost.kudos = (updatedPost.kudos - 1).clamp(0, double.infinity).toInt();
+      } else {
+        // Add kudo
+        updatedPost.viewerHasKudoed = true;
+        updatedPost.kudos = updatedPost.kudos + 1;
+      }
+    });
+    
     try {
       await _activityService.addKudos(post.id!);
-      // Refresh the feed to get updated kudos count
-      await _loadFeed();
     } catch (e) {
+      // Revert on error
+      setState(() {
+        if (wasKudoed) {
+          updatedPost.viewerHasKudoed = true;
+          updatedPost.kudos = updatedPost.kudos + 1;
+        } else {
+          updatedPost.viewerHasKudoed = false;
+          updatedPost.kudos = (updatedPost.kudos - 1).clamp(0, double.infinity).toInt();
+        }
+      });
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -141,17 +190,122 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
 
     if (result != null && result.isNotEmpty) {
       try {
-        await _activityService.addComment(
+        final commentResponse = await _activityService.addComment(
           activityId: post.id!,
           content: result,
         );
-        // Refresh the feed to show the new comment
-        await _loadFeed();
+        
+        // Update local state with the new comment
+        setState(() {
+          final index = _posts.indexWhere((p) => p.id == post.id);
+          if (index != -1) {
+            final currentUser = AuthService().currentUser;
+            final currentUserId = currentUser?.id;
+            final authorName = widget.loginResult.displayName;
+            
+            final newComment = ActivityComment(
+              id: commentResponse['id'] as String,
+              userId: currentUserId ?? '',
+              author: authorName,
+              content: result,
+              createdAt: DateTime.parse(commentResponse['created_at'] as String),
+            );
+            
+            // Create a new list with the updated comments
+            final updatedPost = _posts[index];
+            final updatedComments = List<ActivityComment>.from(updatedPost.comments)
+              ..add(newComment);
+            
+            // Create a new ActivityPost with updated comments
+            _posts[index] = ActivityPost(
+              id: updatedPost.id,
+              author: updatedPost.author,
+              activity: updatedPost.activity,
+              title: updatedPost.title,
+              description: updatedPost.description,
+              duration: updatedPost.duration,
+              createdAt: updatedPost.createdAt,
+              mediaUrl: updatedPost.mediaUrl,
+              kudos: updatedPost.kudos,
+              comments: updatedComments,
+              viewerHasKudoed: updatedPost.viewerHasKudoed,
+            );
+          }
+        });
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Failed to post comment: ${e.toString()}'),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _deleteComment(ActivityPost post, ActivityComment comment) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Delete comment'),
+          content: const Text('Are you sure you want to delete this comment?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.error,
+              ),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true) {
+      // Optimistically remove comment from UI
+      setState(() {
+        final postIndex = _posts.indexWhere((p) => p.id == post.id);
+        if (postIndex != -1) {
+          final updatedPost = _posts[postIndex];
+          final updatedComments = updatedPost.comments
+              .where((c) => c.id != comment.id)
+              .toList();
+          
+          // Create a new ActivityPost with updated comments
+          _posts[postIndex] = ActivityPost(
+            id: updatedPost.id,
+            author: updatedPost.author,
+            activity: updatedPost.activity,
+            title: updatedPost.title,
+            description: updatedPost.description,
+            duration: updatedPost.duration,
+            createdAt: updatedPost.createdAt,
+            mediaUrl: updatedPost.mediaUrl,
+            kudos: updatedPost.kudos,
+            comments: updatedComments,
+            viewerHasKudoed: updatedPost.viewerHasKudoed,
+          );
+        }
+      });
+      
+      try {
+        await _activityService.deleteComment(comment.id);
+      } catch (e) {
+        // Revert on error - reload the feed
+        await _loadFeed();
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to delete comment: ${e.toString()}'),
               duration: const Duration(seconds: 2),
             ),
           );
@@ -242,7 +396,9 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
                               post: post,
                               onGiveKudos: () => _giveKudos(post),
                               onComment: () => _addComment(post),
+                              onDeleteComment: (comment) => _deleteComment(post, comment),
                               viewerName: widget.loginResult.displayName,
+                              currentUserId: AuthService().currentUser?.id,
                             ),
                           );
                         },
@@ -257,13 +413,17 @@ class _ActivityPostCard extends StatelessWidget {
     required this.post,
     required this.onGiveKudos,
     required this.onComment,
+    required this.onDeleteComment,
     required this.viewerName,
+    required this.currentUserId,
   });
 
   final ActivityPost post;
   final VoidCallback onGiveKudos;
   final VoidCallback onComment;
+  final void Function(ActivityComment) onDeleteComment;
   final String viewerName;
+  final String? currentUserId;
 
   @override
   Widget build(BuildContext context) {
@@ -352,7 +512,7 @@ class _ActivityPostCard extends StatelessWidget {
                 ),
               ),
               TextButton.icon(
-                onPressed: post.viewerHasKudoed ? null : onGiveKudos,
+                onPressed: onGiveKudos,
                 style: TextButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                 ),
@@ -380,15 +540,40 @@ class _ActivityPostCard extends StatelessWidget {
             ...post.comments
                 .take(2)
                 .map(
-                  (comment) => Padding(
-                    padding: const EdgeInsets.only(bottom: 6),
-                    child: Text(
-                      comment,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: colors.onSurface.withValues(alpha: 0.8),
+                  (comment) {
+                    final isOwnComment = currentUserId != null && 
+                                         comment.userId == currentUserId;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '${comment.author}: ${comment.content}',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: colors.onSurface.withValues(alpha: 0.8),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (isOwnComment)
+                            IconButton(
+                              icon: const Icon(Icons.delete, size: 16),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              color: colors.error,
+                              onPressed: () => onDeleteComment(comment),
+                              tooltip: 'Delete comment',
+                            ),
+                        ],
                       ),
-                    ),
-                  ),
+                    );
+                  },
                 ),
             if (post.comments.length > 2)
               Text(
