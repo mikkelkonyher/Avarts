@@ -146,8 +146,17 @@ class _MyProfilePageState extends State<MyProfilePage>
     return stats;
   }
 
-  int get _doomscrollMinutes =>
-      _stats.firstWhere((stat) => stat.label == 'Doomscrolling').minutes;
+  int get _doomscrollMinutes => _stats
+      .firstWhere(
+        (stat) => stat.label == 'Doomscrolling',
+        orElse: () => _ChillStat(
+          label: 'Doomscrolling',
+          minutes: 0,
+          icon: Icons.swipe_up,
+          color: Color(0xFFD29922),
+        ),
+      )
+      .minutes;
 
   int get _totalMinutes =>
       _stats.fold<int>(0, (sum, stat) => sum + stat.minutes);
