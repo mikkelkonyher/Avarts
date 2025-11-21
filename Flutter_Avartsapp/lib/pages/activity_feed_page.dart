@@ -34,12 +34,12 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
 
     try {
       final activities = await _activityService.getFeedActivities();
-      
+
       setState(() {
         _posts = activities.map((activity) {
           final commentsData = activity['comments'];
           final List<ActivityComment> comments;
-          
+
           if (commentsData is List) {
             comments = commentsData
                 .where((comment) => comment is Map<String, dynamic>)
@@ -50,14 +50,16 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
                     userId: commentMap['user_id'] as String,
                     author: commentMap['author'] as String,
                     content: commentMap['content'] as String,
-                    createdAt: DateTime.parse(commentMap['created_at'] as String),
+                    createdAt: DateTime.parse(
+                      commentMap['created_at'] as String,
+                    ),
                   );
                 })
                 .toList();
           } else {
             comments = <ActivityComment>[];
           }
-          
+
           return ActivityPost(
             id: activity['id'] as String,
             author: activity['author_name'] as String? ?? 'User',
@@ -113,26 +115,28 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
 
   Future<void> _giveKudos(ActivityPost post) async {
     if (post.id == null) return;
-    
+
     // Optimistically update UI
     final index = _posts.indexWhere((p) => p.id == post.id);
     if (index == -1) return;
-    
+
     final updatedPost = _posts[index];
     final wasKudoed = updatedPost.viewerHasKudoed;
-    
+
     setState(() {
       if (wasKudoed) {
         // Remove kudo
         updatedPost.viewerHasKudoed = false;
-        updatedPost.kudos = (updatedPost.kudos - 1).clamp(0, double.infinity).toInt();
+        updatedPost.kudos = (updatedPost.kudos - 1)
+            .clamp(0, double.infinity)
+            .toInt();
       } else {
         // Add kudo
         updatedPost.viewerHasKudoed = true;
         updatedPost.kudos = updatedPost.kudos + 1;
       }
     });
-    
+
     try {
       await _activityService.addKudos(post.id!);
     } catch (e) {
@@ -143,10 +147,12 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
           updatedPost.kudos = updatedPost.kudos + 1;
         } else {
           updatedPost.viewerHasKudoed = false;
-          updatedPost.kudos = (updatedPost.kudos - 1).clamp(0, double.infinity).toInt();
+          updatedPost.kudos = (updatedPost.kudos - 1)
+              .clamp(0, double.infinity)
+              .toInt();
         }
       });
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -160,7 +166,7 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
 
   Future<void> _addComment(ActivityPost post) async {
     if (post.id == null) return;
-    
+
     final controller = TextEditingController();
     final result = await showDialog<String>(
       context: context,
@@ -194,7 +200,7 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
           activityId: post.id!,
           content: result,
         );
-        
+
         // Update local state with the new comment
         setState(() {
           final index = _posts.indexWhere((p) => p.id == post.id);
@@ -202,20 +208,23 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
             final currentUser = AuthService().currentUser;
             final currentUserId = currentUser?.id;
             final authorName = widget.loginResult.displayName;
-            
+
             final newComment = ActivityComment(
               id: commentResponse['id'] as String,
               userId: currentUserId ?? '',
               author: authorName,
               content: result,
-              createdAt: DateTime.parse(commentResponse['created_at'] as String),
+              createdAt: DateTime.parse(
+                commentResponse['created_at'] as String,
+              ),
             );
-            
+
             // Create a new list with the updated comments
             final updatedPost = _posts[index];
-            final updatedComments = List<ActivityComment>.from(updatedPost.comments)
-              ..add(newComment);
-            
+            final updatedComments = List<ActivityComment>.from(
+              updatedPost.comments,
+            )..add(newComment);
+
             // Create a new ActivityPost with updated comments
             _posts[index] = ActivityPost(
               id: updatedPost.id,
@@ -245,7 +254,10 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
     }
   }
 
-  Future<void> _deleteComment(ActivityPost post, ActivityComment comment) async {
+  Future<void> _deleteComment(
+    ActivityPost post,
+    ActivityComment comment,
+  ) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) {
@@ -278,7 +290,7 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
           final updatedComments = updatedPost.comments
               .where((c) => c.id != comment.id)
               .toList();
-          
+
           // Create a new ActivityPost with updated comments
           _posts[postIndex] = ActivityPost(
             id: updatedPost.id,
@@ -295,13 +307,13 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
           );
         }
       });
-      
+
       try {
         await _activityService.deleteComment(comment.id);
       } catch (e) {
         // Revert on error - reload the feed
         await _loadFeed();
-        
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -337,72 +349,71 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
         child: _isLoading
             ? const Center(child: CircularProgressIndicator())
             : _errorMessage != null
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          _errorMessage!,
-                          style: Theme.of(context).textTheme.bodyLarge,
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 16),
-                        FilledButton(
-                          onPressed: _loadFeed,
-                          child: const Text('Retry'),
-                        ),
-                      ],
+            ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      _errorMessage!,
+                      style: Theme.of(context).textTheme.bodyLarge,
+                      textAlign: TextAlign.center,
                     ),
-                  )
-                : _posts.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.feed_outlined,
-                              size: 64,
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurface
-                                  .withValues(alpha: 0.5),
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'No activities yet',
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Be the first to log an activity!',
-                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSurface
-                                        .withValues(alpha: 0.7),
-                                  ),
-                            ),
-                          ],
-                        ),
-                      )
-                    : ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(24, 24, 24, 120),
-                        itemCount: _posts.length,
-                        itemBuilder: (context, index) {
-                          final post = _posts[index];
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 18),
-                            child: _ActivityPostCard(
-                              post: post,
-                              onGiveKudos: () => _giveKudos(post),
-                              onComment: () => _addComment(post),
-                              onDeleteComment: (comment) => _deleteComment(post, comment),
-                              viewerName: widget.loginResult.displayName,
-                              currentUserId: AuthService().currentUser?.id,
-                            ),
-                          );
-                        },
+                    const SizedBox(height: 16),
+                    FilledButton(
+                      onPressed: _loadFeed,
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              )
+            : _posts.isEmpty
+            ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.feed_outlined,
+                      size: 64,
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withValues(alpha: 0.5),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'No activities yet',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Be the first to log an activity!',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withValues(alpha: 0.7),
                       ),
+                    ),
+                  ],
+                ),
+              )
+            : ListView.builder(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 120),
+                itemCount: _posts.length,
+                itemBuilder: (context, index) {
+                  final post = _posts[index];
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 18),
+                    child: _ActivityPostCard(
+                      post: post,
+                      onGiveKudos: () => _giveKudos(post),
+                      onComment: () => _addComment(post),
+                      onDeleteComment: (comment) =>
+                          _deleteComment(post, comment),
+                      viewerName: widget.loginResult.displayName,
+                      currentUserId: AuthService().currentUser?.id,
+                    ),
+                  );
+                },
+              ),
       ),
     );
   }
@@ -537,44 +548,40 @@ class _ActivityPostCard extends StatelessWidget {
           ),
           if (post.comments.isNotEmpty) ...[
             const Divider(height: 24),
-            ...post.comments
-                .take(2)
-                .map(
-                  (comment) {
-                    final isOwnComment = currentUserId != null && 
-                                         comment.userId == currentUserId;
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Row(
+            ...post.comments.take(2).map((comment) {
+              final isOwnComment =
+                  currentUserId != null && comment.userId == currentUserId;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  '${comment.author}: ${comment.content}',
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: colors.onSurface.withValues(alpha: 0.8),
-                                  ),
-                                ),
-                              ],
+                          Text(
+                            '${comment.author}: ${comment.content}',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colors.onSurface.withValues(alpha: 0.8),
                             ),
                           ),
-                          if (isOwnComment)
-                            IconButton(
-                              icon: const Icon(Icons.delete, size: 16),
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(),
-                              color: colors.error,
-                              onPressed: () => onDeleteComment(comment),
-                              tooltip: 'Delete comment',
-                            ),
                         ],
                       ),
-                    );
-                  },
+                    ),
+                    if (isOwnComment)
+                      IconButton(
+                        icon: const Icon(Icons.delete, size: 16),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        color: colors.error,
+                        onPressed: () => onDeleteComment(comment),
+                        tooltip: 'Delete comment',
+                      ),
+                  ],
                 ),
+              );
+            }),
             if (post.comments.length > 2)
               Text(
                 '+${post.comments.length - 2} more comments',
