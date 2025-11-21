@@ -31,17 +31,9 @@ class _LogActivityPageState extends State<LogActivityPage> {
     'Pro-level procrastination',
   ];
 
-  final List<String> _mediaOptions = const [
-    'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=800&q=80',
-    'https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=800&q=80',
-    'https://images.unsplash.com/photo-1500534319170-228a5339e7c3?auto=format&fit=crop&w=800&q=80',
-    'https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&w=800&q=80',
-  ];
-
   String? _selectedActivity;
   int _hours = 1;
   int _minutes = 0;
-  String? _selectedMedia;
   File? _selectedImageFile;
   bool _submitting = false;
 
@@ -92,9 +84,6 @@ class _LogActivityPageState extends State<LogActivityPage> {
           setState(() => _submitting = false);
           return;
         }
-      } else if (_selectedMedia != null && _selectedMedia!.isNotEmpty) {
-        // If it's a URL (from the preset options), use it directly
-        imageUrl = _selectedMedia;
       }
 
       // Post activity to Supabase
@@ -128,7 +117,7 @@ class _LogActivityPageState extends State<LogActivityPage> {
   }
 
   Future<void> _pickMedia() async {
-    // Show options: Camera, Gallery, or Preset images
+    // Show options: Camera or Gallery
     final option = await showModalBottomSheet<String>(
       context: context,
       showDragHandle: true,
@@ -148,11 +137,6 @@ class _LogActivityPageState extends State<LogActivityPage> {
                 title: const Text('Choose from Gallery'),
                 onTap: () => Navigator.of(context).pop('gallery'),
               ),
-              ListTile(
-                leading: const Icon(Icons.image),
-                title: const Text('Use Preset Image'),
-                onTap: () => Navigator.of(context).pop('preset'),
-              ),
             ],
           ),
         );
@@ -160,12 +144,6 @@ class _LogActivityPageState extends State<LogActivityPage> {
     );
 
     if (option == null) return;
-
-    // Handle preset images
-    if (option == 'preset') {
-      _showPresetImages();
-      return;
-    }
 
     // Handle camera or gallery
     try {
@@ -181,7 +159,6 @@ class _LogActivityPageState extends State<LogActivityPage> {
       if (image != null) {
         setState(() {
           _selectedImageFile = File(image.path);
-          _selectedMedia = null; // Clear preset selection
         });
       }
     } catch (e) {
@@ -193,42 +170,6 @@ class _LogActivityPageState extends State<LogActivityPage> {
         ),
       );
     }
-  }
-
-  void _showPresetImages() {
-    showModalBottomSheet<String>(
-      context: context,
-      showDragHandle: true,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      builder: (context) {
-        return GridView.builder(
-          padding: const EdgeInsets.all(16),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-          ),
-          itemCount: _mediaOptions.length,
-          itemBuilder: (context, index) {
-            final url = _mediaOptions[index];
-            return GestureDetector(
-              onTap: () => Navigator.of(context).pop(url),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(20),
-                child: Image.network(url, fit: BoxFit.cover),
-              ),
-            );
-          },
-        );
-      },
-    ).then((value) {
-      if (value != null) {
-        setState(() {
-          _selectedMedia = value;
-          _selectedImageFile = null; // Clear file selection
-        });
-      }
-    });
   }
 
   @override
@@ -312,27 +253,22 @@ class _LogActivityPageState extends State<LogActivityPage> {
                   onPressed: _pickMedia,
                   icon: const Icon(Icons.cloud_upload_outlined),
                   label: Text(
-                    _selectedMedia == null ? 'Upload media' : 'Change media',
+                    _selectedImageFile == null
+                        ? 'Upload media'
+                        : 'Change media',
                   ),
                 ),
               ),
-              if (_selectedMedia != null || _selectedImageFile != null) ...[
+              if (_selectedImageFile != null) ...[
                 const SizedBox(width: 12),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(18),
-                  child: _selectedImageFile != null
-                      ? Image.file(
-                          _selectedImageFile!,
-                          width: 58,
-                          height: 58,
-                          fit: BoxFit.cover,
-                        )
-                      : Image.network(
-                          _selectedMedia!,
-                          width: 58,
-                          height: 58,
-                          fit: BoxFit.cover,
-                        ),
+                  child: Image.file(
+                    _selectedImageFile!,
+                    width: 58,
+                    height: 58,
+                    fit: BoxFit.cover,
+                  ),
                 ),
               ],
             ],
