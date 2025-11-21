@@ -224,54 +224,6 @@ class ActivityService {
     return email ?? 'Avarts Legend';
   }
 
-  /// Gets display name for a user ID
-  /// For the current user, uses their session metadata
-  /// For other users, tries to fetch from a profiles table, or uses a fallback
-  ///
-  /// [userId] - The user ID to get display name for
-  ///
-  /// Returns the user's display name or a fallback
-  Future<String> _getUserDisplayName(String userId) async {
-    final currentUser = client.auth.currentUser;
-
-    // If it's the current user, use their metadata
-    if (currentUser != null && currentUser.id == userId) {
-      return _getUserDisplayNameFromMetadata(
-        currentUser.userMetadata,
-        currentUser.email,
-      );
-    }
-
-    // Try to fetch from a profiles table if it exists
-    try {
-      final profile = await client
-          .from('profiles')
-          .select('display_name, full_name, user_name')
-          .eq('id', userId)
-          .maybeSingle();
-
-      if (profile != null) {
-        final displayName = profile['display_name'] as String?;
-        if (displayName != null && displayName.isNotEmpty) {
-          return displayName;
-        }
-        final fullName = profile['full_name'] as String?;
-        if (fullName != null && fullName.isNotEmpty) {
-          return fullName;
-        }
-        final userName = profile['user_name'] as String?;
-        if (userName != null && userName.isNotEmpty) {
-          return userName;
-        }
-      }
-    } catch (e) {
-      // Profiles table might not exist, that's okay
-    }
-
-    // Fallback - in production, you'd want to ensure user names are available
-    return 'User';
-  }
-
   /// Fetches activities for the feed with kudos and comments
   ///
   /// [limit] - Maximum number of activities to fetch (default: 50)
@@ -356,9 +308,7 @@ class ActivityService {
       // Build OR condition or fetch all and filter
       final profilesResponse = userIds.isEmpty
           ? <Map<String, dynamic>>[]
-          : await client
-                .from('profiles')
-                .select('id, display_name, full_name, user_name');
+          : await client.from('profiles').select('id, user_name');
 
       final allProfiles = List<Map<String, dynamic>>.from(profilesResponse);
       // Filter to only profiles we need
@@ -386,14 +336,6 @@ class ActivityService {
         // Check profiles table
         final profile = profilesByUserId[userId];
         if (profile != null) {
-          final displayName = profile['display_name'] as String?;
-          if (displayName != null && displayName.isNotEmpty) {
-            return displayName;
-          }
-          final fullName = profile['full_name'] as String?;
-          if (fullName != null && fullName.isNotEmpty) {
-            return fullName;
-          }
           final userName = profile['user_name'] as String?;
           if (userName != null && userName.isNotEmpty) {
             return userName;

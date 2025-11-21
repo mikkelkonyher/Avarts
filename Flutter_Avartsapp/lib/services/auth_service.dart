@@ -27,12 +27,19 @@ class LoginResult {
   final String? token;
 
   /// Gets a display name for the user, trying multiple fallback strategies:
-  /// 1. user_metadata full_name
-  /// 2. user_metadata first_name
-  /// 3. Email username (part before @)
-  /// 4. Default fallback
+  /// 1. user_metadata userName (preferred)
+  /// 2. user_metadata full_name
+  /// 3. user_metadata first_name
+  /// 4. Email username (part before @)
+  /// 5. Default fallback
   String get displayName {
     final metadata = user.userMetadata ?? {};
+
+    // Try userName from metadata first (preferred)
+    final userName = metadata['userName'] as String?;
+    if (userName != null && userName.isNotEmpty) {
+      return userName;
+    }
 
     // Try full_name from metadata
     final fullName = metadata['full_name'] as String?;
@@ -44,12 +51,6 @@ class LoginResult {
     final firstName = metadata['first_name'] as String?;
     if (firstName != null && firstName.isNotEmpty) {
       return firstName;
-    }
-
-    // Try userName from metadata
-    final userName = metadata['userName'] as String?;
-    if (userName != null && userName.isNotEmpty) {
-      return userName;
     }
 
     // Extract username from email (part before @)
@@ -100,6 +101,8 @@ class AuthService {
   /// [userName] - Optional username (used as display name)
   ///
   /// Throws [AuthException] if registration fails
+  ///
+  /// Note: Profile is automatically created by database trigger using display_name from metadata
   Future<void> registerUser({
     required String email,
     required String password,
@@ -107,11 +110,12 @@ class AuthService {
   }) async {
     try {
       // Build user metadata
+      // The trigger looks for 'display_name' in raw_user_meta_data to set user_name in profiles
       final metadata = <String, dynamic>{};
       if (userName != null && userName.isNotEmpty) {
-        metadata['userName'] = userName;
-        // Set full_name to userName so it's used as display name
-        metadata['full_name'] = userName;
+        metadata['display_name'] = userName; // Trigger uses this to set user_name in profiles
+        metadata['userName'] = userName; // Keep for backward compatibility
+        metadata['full_name'] = userName; // Keep for backward compatibility
       }
 
       // Get email verification redirect URL from environment
@@ -128,6 +132,9 @@ class AuthService {
       if (response.user == null) {
         throw AuthException('Registration failed: No user returned');
       }
+
+      // Profile is automatically created by the database trigger
+      // No need to manually create/update it here
     } on AuthException {
       rethrow;
     } on Exception catch (e) {
@@ -152,6 +159,9 @@ class AuthService {
       if (response.user == null) {
         throw AuthException('Login failed: No user returned');
       }
+
+      // Ensure profile is set up correctly (update display_name if needed)
+      await _ensureProfileSetup(response.user!);
 
       return LoginResult(
         user: response.user!,
@@ -221,6 +231,8 @@ class AuthService {
       while (DateTime.now().difference(startTime) < maxWaitTime) {
         final session = client.auth.currentSession;
         if (session != null) {
+          // Ensure profile is set up correctly
+          await _ensureProfileSetup(session.user);
           return LoginResult(
             user: session.user,
             token: session.accessToken,
@@ -259,6 +271,8 @@ class AuthService {
       while (DateTime.now().difference(startTime) < maxWaitTime) {
         final session = client.auth.currentSession;
         if (session != null) {
+          // Ensure profile is set up correctly
+          await _ensureProfileSetup(session.user);
           return LoginResult(
             user: session.user,
             token: session.accessToken,
@@ -319,9 +333,48 @@ class AuthService {
       if (type == 'signup' && accessToken != null && refreshToken != null) {
         // Exchange the tokens for a session to verify email
         await client.auth.setSession(refreshToken);
+        // Ensure profile is set up correctly after email verification
+        final user = client.auth.currentUser;
+        if (user != null) {
+          await _ensureProfileSetup(user);
+        }
       }
     } on Exception catch (e) {
       throw AuthException('Failed to handle email verification link: ${e.toString()}');
+    }
+  }
+
+  /// Ensures the user's profile is set up correctly with user_name
+  /// Updates profile if user_name from metadata doesn't match profile
+  Future<void> _ensureProfileSetup(User user) async {
+    try {
+      final metadata = user.userMetadata ?? {};
+      // Try display_name first (used by trigger), then userName for backward compatibility
+      final userName = metadata['display_name'] as String? ?? 
+                       metadata['userName'] as String?;
+
+      // If we have a userName in metadata, ensure profile uses it
+      if (userName != null && userName.isNotEmpty) {
+        // Check current profile
+        final profile = await client
+            .from('profiles')
+            .select('user_name')
+            .eq('id', user.id)
+            .maybeSingle();
+
+        // Update profile if user_name doesn't match
+        if (profile == null || 
+            (profile['user_name'] as String?) != userName) {
+          await client.from('profiles').upsert({
+            'id': user.id,
+            'user_name': userName,
+          });
+        }
+      }
+    } catch (e) {
+      // Profile update might fail if table doesn't exist or permissions issue
+      // Log but don't fail login
+      print('Warning: Failed to ensure profile setup: $e');
     }
   }
 }
