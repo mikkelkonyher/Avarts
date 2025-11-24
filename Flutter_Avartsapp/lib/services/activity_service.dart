@@ -281,6 +281,32 @@ class ActivityService {
           .where((c) => activityIds.contains(c['activity_id'] as String))
           .toList();
 
+      // Extract all comment IDs
+      final commentIds = commentsList
+          .map((c) => c['id'] as String)
+          .toSet();
+
+      // Fetch all reactions for these comments
+      final reactionsResponse = commentIds.isEmpty
+          ? <Map<String, dynamic>>[]
+          : await client
+                .from('comment_reactions')
+                .select()
+                .order('created_at', ascending: true);
+
+      final allReactions = List<Map<String, dynamic>>.from(reactionsResponse);
+      // Filter to only reactions for our comments
+      final reactionsList = allReactions
+          .where((r) => commentIds.contains(r['comment_id'] as String))
+          .toList();
+
+      // Group reactions by comment_id
+      final reactionsByComment = <String, List<Map<String, dynamic>>>{};
+      for (final reaction in reactionsList) {
+        final commentId = reaction['comment_id'] as String;
+        reactionsByComment.putIfAbsent(commentId, () => []).add(reaction);
+      }
+
       // Group kudos by activity_id
       final kudosByActivity = <String, List<Map<String, dynamic>>>{};
       for (final kudo in kudosList) {
@@ -362,7 +388,7 @@ class ActivityService {
         // Get comments for this activity
         final activityComments = commentsByActivity[activityId] ?? [];
 
-        // Format comments with full data including IDs and organize hierarchically
+        // Format comments with full data including IDs, reactions, and organize hierarchically
         final List<Map<String, dynamic>> allComments = [];
         for (final comment in activityComments) {
           final commentId = comment['id'] as String;
@@ -371,6 +397,18 @@ class ActivityService {
           final commentCreatedAt = comment['created_at'] as String;
           final parentCommentId = comment['parent_comment_id'] as String?;
           final authorName = getUserDisplayName(commentUserId);
+          
+          // Get reactions for this comment
+          final commentReactions = reactionsByComment[commentId] ?? [];
+          final reactionsData = commentReactions.map((reaction) {
+            return {
+              'id': reaction['id'] as String,
+              'user_id': reaction['user_id'] as String,
+              'emoji': reaction['emoji'] as String,
+              'created_at': reaction['created_at'] as String,
+            };
+          }).toList();
+          
           allComments.add({
             'id': commentId,
             'user_id': commentUserId,
@@ -378,6 +416,7 @@ class ActivityService {
             'content': commentContent,
             'created_at': commentCreatedAt,
             'parent_comment_id': parentCommentId,
+            'reactions': reactionsData,
           });
         }
 
@@ -546,6 +585,71 @@ class ActivityService {
       throw Exception('Failed to delete comment: ${e.message}');
     } on Exception catch (e) {
       throw Exception('Failed to delete comment: ${e.toString()}');
+    }
+  }
+
+  /// Adds or removes a reaction to a comment
+  /// Users can only have ONE reaction per comment - changing emoji removes the old one
+  ///
+  /// [commentId] - ID of the comment to react to
+  /// [emoji] - The emoji string (e.g., '👍', '❤️', '😂')
+  ///
+  /// Returns the reaction record if added, null if removed
+  /// Throws [Exception] if adding/removing reaction fails
+  Future<Map<String, dynamic>?> toggleCommentReaction({
+    required String commentId,
+    required String emoji,
+  }) async {
+    final userId = currentUserId;
+    if (userId == null) {
+      throw Exception('User must be logged in to react to comments');
+    }
+
+    try {
+      // Check if user already reacted with this exact emoji
+      final existingSameEmoji = await client
+          .from('comment_reactions')
+          .select()
+          .eq('comment_id', commentId)
+          .eq('user_id', userId)
+          .eq('emoji', emoji)
+          .maybeSingle();
+
+      if (existingSameEmoji != null) {
+        // User already has this exact reaction - remove it (toggle off)
+        await client
+            .from('comment_reactions')
+            .delete()
+            .eq('comment_id', commentId)
+            .eq('user_id', userId)
+            .eq('emoji', emoji);
+        return null;
+      } else {
+        // User wants to add/change reaction
+        // First, remove any existing reaction from this user (only one allowed)
+        await client
+            .from('comment_reactions')
+            .delete()
+            .eq('comment_id', commentId)
+            .eq('user_id', userId);
+
+        // Then add the new reaction
+        final response = await client
+            .from('comment_reactions')
+            .insert({
+              'comment_id': commentId,
+              'user_id': userId,
+              'emoji': emoji,
+            })
+            .select()
+            .single();
+
+        return Map<String, dynamic>.from(response);
+      }
+    } on PostgrestException catch (e) {
+      throw Exception('Failed to toggle reaction: ${e.message}');
+    } on Exception catch (e) {
+      throw Exception('Failed to toggle reaction: ${e.toString()}');
     }
   }
 }

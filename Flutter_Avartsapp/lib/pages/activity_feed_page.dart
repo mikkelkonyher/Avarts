@@ -49,6 +49,22 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
                   .map<ActivityComment>((reply) => parseComment(reply))
                   .toList();
 
+              // Parse reactions
+              final reactionsData = commentMap['reactions'] as List? ?? [];
+              final reactions = reactionsData
+                  .whereType<Map<String, dynamic>>()
+                  .map<CommentReaction>((reaction) {
+                    return CommentReaction(
+                      id: reaction['id'] as String,
+                      userId: reaction['user_id'] as String,
+                      emoji: reaction['emoji'] as String,
+                      createdAt: DateTime.parse(
+                        reaction['created_at'] as String,
+                      ),
+                    );
+                  })
+                  .toList();
+
               return ActivityComment(
                 id: commentMap['id'] as String,
                 userId: commentMap['user_id'] as String,
@@ -57,6 +73,7 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
                 createdAt: DateTime.parse(commentMap['created_at'] as String),
                 parentCommentId: commentMap['parent_comment_id'] as String?,
                 replies: replies,
+                reactions: reactions,
               );
             }
 
@@ -421,6 +438,117 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
     }
   }
 
+  Future<void> _toggleReaction(
+    ActivityPost post,
+    ActivityComment comment,
+    String emoji,
+  ) async {
+    if (post.id == null) return;
+
+    // Optimistically update UI
+    setState(() {
+      final postIndex = _posts.indexWhere((p) => p.id == post.id);
+      if (postIndex != -1) {
+        final currentUserId = AuthService().currentUser?.id;
+        if (currentUserId == null) return;
+
+        // Helper to recursively update comment reactions
+        // Users can only have ONE reaction at a time - remove any existing, then add new
+        ActivityComment updateCommentReactions(ActivityComment c) {
+          // Check if user already has this exact reaction
+          final hasThisReaction = c.reactions.any(
+            (r) => r.userId == currentUserId && r.emoji == emoji,
+          );
+
+          // Remove all existing reactions from this user (only one allowed)
+          final reactionsWithoutUser = c.reactions
+              .where((r) => r.userId != currentUserId)
+              .toList();
+
+          // If user already has this reaction, remove it (toggle off)
+          // Otherwise, add the new reaction (and remove any old one)
+          final updatedReactions = hasThisReaction
+              ? reactionsWithoutUser
+              : [
+                  ...reactionsWithoutUser,
+                  CommentReaction(
+                    id: 'temp_${DateTime.now().millisecondsSinceEpoch}',
+                    userId: currentUserId,
+                    emoji: emoji,
+                    createdAt: DateTime.now(),
+                  ),
+                ];
+
+          return ActivityComment(
+            id: c.id,
+            userId: c.userId,
+            author: c.author,
+            content: c.content,
+            createdAt: c.createdAt,
+            parentCommentId: c.parentCommentId,
+            replies: c.replies.map(updateCommentReactions).toList(),
+            reactions: updatedReactions,
+          );
+        }
+
+        // Helper to find and update the specific comment
+        List<ActivityComment> updateComments(List<ActivityComment> comments) {
+          return comments.map((c) {
+            if (c.id == comment.id) {
+              return updateCommentReactions(c);
+            }
+            return ActivityComment(
+              id: c.id,
+              userId: c.userId,
+              author: c.author,
+              content: c.content,
+              createdAt: c.createdAt,
+              parentCommentId: c.parentCommentId,
+              replies: updateComments(c.replies),
+              reactions: c.reactions,
+            );
+          }).toList();
+        }
+
+        final updatedPost = _posts[postIndex];
+        final updatedComments = updateComments(updatedPost.comments);
+
+        _posts[postIndex] = ActivityPost(
+          id: updatedPost.id,
+          author: updatedPost.author,
+          activity: updatedPost.activity,
+          title: updatedPost.title,
+          description: updatedPost.description,
+          duration: updatedPost.duration,
+          createdAt: updatedPost.createdAt,
+          mediaUrl: updatedPost.mediaUrl,
+          kudos: updatedPost.kudos,
+          comments: updatedComments,
+          viewerHasKudoed: updatedPost.viewerHasKudoed,
+        );
+      }
+    });
+
+    try {
+      await _activityService.toggleCommentReaction(
+        commentId: comment.id,
+        emoji: emoji,
+      );
+      // Don't reload - keep the optimistic update to avoid scrolling/closing
+    } catch (e) {
+      // Revert on error by reloading
+      await _loadFeed();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to react: ${e.toString()}'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _deleteComment(
     ActivityPost post,
     ActivityComment comment,
@@ -577,6 +705,8 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
                       onComment: () => _addComment(post),
                       onReplyToComment: (comment) =>
                           _replyToComment(post, comment),
+                      onToggleReaction: (post, comment, emoji) =>
+                          _toggleReaction(post, comment, emoji),
                       onDeleteComment: (comment) =>
                           _deleteComment(post, comment),
                       viewerName: widget.loginResult.displayName,
@@ -597,6 +727,7 @@ class _ActivityPostCard extends StatefulWidget {
     required this.onGiveKudos,
     required this.onComment,
     required this.onReplyToComment,
+    required this.onToggleReaction,
     required this.onDeleteComment,
     required this.viewerName,
     required this.currentUserId,
@@ -606,6 +737,7 @@ class _ActivityPostCard extends StatefulWidget {
   final VoidCallback onGiveKudos;
   final VoidCallback onComment;
   final void Function(ActivityComment) onReplyToComment;
+  final void Function(ActivityPost, ActivityComment, String) onToggleReaction;
   final void Function(ActivityComment) onDeleteComment;
   final String viewerName;
   final String? currentUserId;
@@ -769,6 +901,8 @@ class _ActivityPostCardState extends State<_ActivityPostCard> {
                 comment: comment,
                 currentUserId: widget.currentUserId,
                 onReply: widget.onReplyToComment,
+                onReact: (comment, emoji) =>
+                    widget.onToggleReaction(widget.post, comment, emoji),
                 onDelete: widget.onDeleteComment,
                 theme: theme,
                 colors: colors,
@@ -844,6 +978,7 @@ class _CommentWidget extends StatelessWidget {
     required this.comment,
     required this.currentUserId,
     required this.onReply,
+    required this.onReact,
     required this.onDelete,
     required this.theme,
     required this.colors,
@@ -853,10 +988,30 @@ class _CommentWidget extends StatelessWidget {
   final ActivityComment comment;
   final String? currentUserId;
   final void Function(ActivityComment) onReply;
+  final void Function(ActivityComment, String) onReact;
   final void Function(ActivityComment) onDelete;
   final ThemeData theme;
   final ColorScheme colors;
   final String Function(DateTime) timeAgo;
+
+  static const List<String> _availableEmojis = [
+    '👍',
+    '❤️',
+    '😂',
+    '😮',
+    '😢',
+    '🙏',
+    '🔥',
+    '👏',
+    '🎉',
+    '💯',
+    '😊',
+    '🤔',
+    '😍',
+    '🤯',
+    '💪',
+    '✨',
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -915,6 +1070,81 @@ class _CommentWidget extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 4),
+                    // Reactions display
+                    if (comment.reactions.isNotEmpty) ...[
+                      Wrap(
+                        spacing: 4,
+                        runSpacing: 4,
+                        children: [
+                          ...comment.reactions
+                              .fold<Map<String, int>>(<String, int>{}, (
+                                map,
+                                r,
+                              ) {
+                                map[r.emoji] = (map[r.emoji] ?? 0) + 1;
+                                return map;
+                              })
+                              .entries
+                              .map((entry) {
+                                final hasUserReaction = comment.reactions.any(
+                                  (r) =>
+                                      r.emoji == entry.key &&
+                                      r.userId == currentUserId,
+                                );
+                                return GestureDetector(
+                                  onTap: () => onReact(comment, entry.key),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: hasUserReaction
+                                          ? colors.primary.withValues(
+                                              alpha: 0.15,
+                                            )
+                                          : colors.surfaceContainerHighest,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: hasUserReaction
+                                            ? colors.primary.withValues(
+                                                alpha: 0.3,
+                                              )
+                                            : colors.surfaceContainerHighest,
+                                        width: 1,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          entry.key,
+                                          style: const TextStyle(fontSize: 14),
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          '${entry.value}',
+                                          style: theme.textTheme.bodySmall
+                                              ?.copyWith(
+                                                color: hasUserReaction
+                                                    ? colors.primary
+                                                    : colors.onSurface
+                                                          .withValues(
+                                                            alpha: 0.7,
+                                                          ),
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              }),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                    ],
                     Row(
                       children: [
                         TextButton(
@@ -934,7 +1164,69 @@ class _CommentWidget extends StatelessWidget {
                             ),
                           ),
                         ),
-                        if (isOwnComment)
+                        const SizedBox(width: 4),
+                        Builder(
+                          builder: (context) {
+                            // Find user's current reaction (if any)
+                            final userReaction = comment.reactions
+                                .where((r) => r.userId == currentUserId)
+                                .firstOrNull;
+
+                            return PopupMenuButton<String>(
+                              icon: Icon(
+                                userReaction != null
+                                    ? Icons.sentiment_satisfied
+                                    : Icons.add_reaction_outlined,
+                                size: 16,
+                                color: userReaction != null
+                                    ? colors.primary
+                                    : colors.onSurface.withValues(alpha: 0.7),
+                              ),
+                              tooltip: userReaction != null
+                                  ? 'Change reaction (currently ${userReaction.emoji})'
+                                  : 'Add reaction',
+                              padding: EdgeInsets.zero,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              itemBuilder: (context) {
+                                return _availableEmojis.map((emoji) {
+                                  final isCurrentReaction =
+                                      userReaction?.emoji == emoji;
+                                  return PopupMenuItem<String>(
+                                    value: emoji,
+                                    child: Row(
+                                      children: [
+                                        Text(
+                                          emoji,
+                                          style: const TextStyle(fontSize: 20),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Text(
+                                            isCurrentReaction
+                                                ? 'Remove'
+                                                : 'React',
+                                            style: theme.textTheme.bodySmall,
+                                          ),
+                                        ),
+                                        if (isCurrentReaction)
+                                          Icon(
+                                            Icons.check,
+                                            size: 16,
+                                            color: colors.primary,
+                                          ),
+                                      ],
+                                    ),
+                                  );
+                                }).toList();
+                              },
+                              onSelected: (emoji) => onReact(comment, emoji),
+                            );
+                          },
+                        ),
+                        if (isOwnComment) ...[
+                          const SizedBox(width: 4),
                           TextButton(
                             onPressed: () => onDelete(comment),
                             style: TextButton.styleFrom(
@@ -952,6 +1244,7 @@ class _CommentWidget extends StatelessWidget {
                               ),
                             ),
                           ),
+                        ],
                       ],
                     ),
                   ],
@@ -969,6 +1262,7 @@ class _CommentWidget extends StatelessWidget {
                     comment: reply,
                     currentUserId: currentUserId,
                     onReply: onReply,
+                    onReact: onReact,
                     onDelete: onDelete,
                     theme: theme,
                     colors: colors,

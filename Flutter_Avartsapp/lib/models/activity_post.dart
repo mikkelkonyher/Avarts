@@ -1,3 +1,25 @@
+/// Model representing a reaction to a comment
+class CommentReaction {
+  CommentReaction({
+    required this.id,
+    required this.userId,
+    required this.emoji,
+    required this.createdAt,
+  });
+
+  /// Reaction ID from database
+  final String id;
+
+  /// User ID of the user who reacted
+  final String userId;
+
+  /// Emoji string (e.g., '👍', '❤️', '😂')
+  final String emoji;
+
+  /// When the reaction was created
+  final DateTime createdAt;
+}
+
 /// Model representing a comment on an activity post
 class ActivityComment {
   ActivityComment({
@@ -8,7 +30,9 @@ class ActivityComment {
     required this.createdAt,
     this.parentCommentId,
     List<ActivityComment>? replies,
-  }) : replies = replies ?? <ActivityComment>[];
+    List<CommentReaction>? reactions,
+  }) : replies = replies ?? <ActivityComment>[],
+       reactions = reactions ?? <CommentReaction>[];
 
   /// Comment ID from database
   final String id;
@@ -30,6 +54,9 @@ class ActivityComment {
 
   /// List of replies to this comment
   final List<ActivityComment> replies;
+
+  /// List of reactions to this comment
+  final List<CommentReaction> reactions;
 }
 
 /// Model representing an activity post in the feed
