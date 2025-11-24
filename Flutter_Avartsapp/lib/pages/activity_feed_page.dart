@@ -240,6 +240,7 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
         createdAt: comment.createdAt,
         parentCommentId: comment.parentCommentId,
         replies: updatedReplies,
+        reactions: comment.reactions, // Preserve reactions
       );
     }).toList();
   }
@@ -263,6 +264,7 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
           createdAt: comment.createdAt,
           parentCommentId: comment.parentCommentId,
           replies: updatedReplies,
+          reactions: comment.reactions, // Preserve reactions
         );
       } else {
         // Recursively search in replies
@@ -279,6 +281,7 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
           createdAt: comment.createdAt,
           parentCommentId: comment.parentCommentId,
           replies: updatedReplies,
+          reactions: comment.reactions, // Preserve reactions
         );
       }
     }).toList();
@@ -520,61 +523,63 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
         final currentUserId = AuthService().currentUser?.id;
         if (currentUserId == null) return;
 
-        // Helper to recursively update comment reactions
-        // Users can only have ONE reaction at a time - remove any existing, then add new
-        ActivityComment updateCommentReactions(ActivityComment c) {
-          // Check if user already has this exact reaction
-          final hasThisReaction = c.reactions.any(
-            (r) => r.userId == currentUserId && r.emoji == emoji,
-          );
-
-          // Remove all existing reactions from this user (only one allowed)
-          final reactionsWithoutUser = c.reactions
-              .where((r) => r.userId != currentUserId)
-              .toList();
-
-          // If user already has this reaction, remove it (toggle off)
-          // Otherwise, add the new reaction (and remove any old one)
-          final updatedReactions = hasThisReaction
-              ? reactionsWithoutUser
-              : [
-                  ...reactionsWithoutUser,
-                  CommentReaction(
-                    id: 'temp_${DateTime.now().millisecondsSinceEpoch}',
-                    userId: currentUserId,
-                    emoji: emoji,
-                    createdAt: DateTime.now(),
-                  ),
-                ];
-
-          return ActivityComment(
-            id: c.id,
-            userId: c.userId,
-            author: c.author,
-            content: c.content,
-            createdAt: c.createdAt,
-            parentCommentId: c.parentCommentId,
-            replies: c.replies.map(updateCommentReactions).toList(),
-            reactions: updatedReactions,
-          );
-        }
-
-        // Helper to find and update the specific comment
+        // Helper to recursively find and update ONLY the specific comment
+        // Don't modify reactions on other comments
         List<ActivityComment> updateComments(List<ActivityComment> comments) {
           return comments.map((c) {
             if (c.id == comment.id) {
-              return updateCommentReactions(c);
+              // This is the comment we want to update
+              // Check if user already has this exact reaction
+              final hasThisReaction = c.reactions.any(
+                (r) => r.userId == currentUserId && r.emoji == emoji,
+              );
+
+              // Remove all existing reactions from this user (only one allowed)
+              final reactionsWithoutUser = c.reactions
+                  .where((r) => r.userId != currentUserId)
+                  .toList();
+
+              // If user already has this reaction, remove it (toggle off)
+              // Otherwise, add the new reaction (and remove any old one)
+              final updatedReactions = hasThisReaction
+                  ? reactionsWithoutUser
+                  : [
+                      ...reactionsWithoutUser,
+                      CommentReaction(
+                        id: 'temp_${DateTime.now().millisecondsSinceEpoch}',
+                        userId: currentUserId,
+                        emoji: emoji,
+                        createdAt: DateTime.now(),
+                      ),
+                    ];
+
+              return ActivityComment(
+                id: c.id,
+                userId: c.userId,
+                author: c.author,
+                content: c.content,
+                createdAt: c.createdAt,
+                parentCommentId: c.parentCommentId,
+                replies: updateComments(
+                  c.replies,
+                ), // Recursively search replies
+                reactions: updatedReactions,
+              );
+            } else {
+              // This is not the target comment - keep it as is, but search in replies
+              return ActivityComment(
+                id: c.id,
+                userId: c.userId,
+                author: c.author,
+                content: c.content,
+                createdAt: c.createdAt,
+                parentCommentId: c.parentCommentId,
+                replies: updateComments(
+                  c.replies,
+                ), // Recursively search replies
+                reactions: c.reactions, // Keep original reactions
+              );
             }
-            return ActivityComment(
-              id: c.id,
-              userId: c.userId,
-              author: c.author,
-              content: c.content,
-              createdAt: c.createdAt,
-              parentCommentId: c.parentCommentId,
-              replies: updateComments(c.replies),
-              reactions: c.reactions,
-            );
           }).toList();
         }
 
