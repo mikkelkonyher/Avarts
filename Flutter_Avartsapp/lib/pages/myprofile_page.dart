@@ -3,6 +3,7 @@ import 'package:avarts/pages/earned_badges_page.dart';
 import 'package:avarts/pages/friends_page.dart';
 import 'package:avarts/pages/login_page.dart';
 import 'package:avarts/pages/log_activity_page.dart';
+import 'package:avarts/pages/activity_feed_page.dart';
 import 'package:avarts/services/auth_service.dart';
 import 'package:avarts/services/activity_service.dart';
 import 'package:avarts/models/activity_post.dart';
@@ -647,6 +648,7 @@ class _MyProfilePageState extends State<MyProfilePage>
           final activity = _activities[index];
           return _ActivityCard(
             activity: activity,
+            loginResult: widget.loginResult,
             onEdit: () => _editActivity(index),
             onDelete: () => _deleteActivity(index),
           );
@@ -808,11 +810,13 @@ class _DoomscrollingMessage extends StatelessWidget {
 class _ActivityCard extends StatelessWidget {
   const _ActivityCard({
     required this.activity,
+    required this.loginResult,
     required this.onEdit,
     required this.onDelete,
   });
 
   final ActivityPost activity;
+  final LoginResult loginResult;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
@@ -891,14 +895,28 @@ class _ActivityCard extends StatelessWidget {
     final activityColor = _getActivityColor(activity.activity);
     final activityIcon = _getActivityIcon(activity.activity);
 
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: colors.surfaceContainerHighest.withValues(alpha: 0.7),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: colors.surfaceContainerHighest),
-      ),
-      child: Column(
+    return InkWell(
+      onTap: activity.id != null
+          ? () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => ActivityFeedPage(
+                    loginResult: loginResult,
+                    activityIdToHighlight: activity.id,
+                  ),
+                ),
+              );
+            }
+          : null,
+      borderRadius: BorderRadius.circular(24),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: colors.surfaceContainerHighest.withValues(alpha: 0.7),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: colors.surfaceContainerHighest),
+        ),
+        child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
@@ -1065,6 +1083,7 @@ class _ActivityCard extends StatelessWidget {
             ],
           ),
         ],
+      ),
       ),
     );
   }

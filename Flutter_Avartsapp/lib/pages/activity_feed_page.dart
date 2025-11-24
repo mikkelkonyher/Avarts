@@ -6,9 +6,14 @@ import 'package:avarts/services/auth_service.dart';
 import 'package:avarts/services/activity_service.dart';
 
 class ActivityFeedPage extends StatefulWidget {
-  const ActivityFeedPage({super.key, required this.loginResult});
+  const ActivityFeedPage({
+    super.key,
+    required this.loginResult,
+    this.activityIdToHighlight,
+  });
 
   final LoginResult loginResult;
+  final String? activityIdToHighlight;
 
   @override
   State<ActivityFeedPage> createState() => _ActivityFeedPageState();
@@ -16,6 +21,7 @@ class ActivityFeedPage extends StatefulWidget {
 
 class _ActivityFeedPageState extends State<ActivityFeedPage> {
   final ActivityService _activityService = ActivityService();
+  final ScrollController _scrollController = ScrollController();
   List<ActivityPost> _posts = [];
   bool _isLoading = true;
   String? _errorMessage;
@@ -24,6 +30,12 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
   void initState() {
     super.initState();
     _loadFeed();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadFeed() async {
@@ -101,11 +113,34 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
         }).toList();
         _isLoading = false;
       });
+
+      // Scroll to highlighted activity if specified
+      if (widget.activityIdToHighlight != null && _posts.isNotEmpty) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _scrollToActivity(widget.activityIdToHighlight!);
+        });
+      }
     } catch (e) {
       setState(() {
         _errorMessage = 'Failed to load feed: ${e.toString()}';
         _isLoading = false;
       });
+    }
+  }
+
+  void _scrollToActivity(String activityId) {
+    final index = _posts.indexWhere((post) => post.id == activityId);
+    if (index != -1 && _scrollController.hasClients) {
+      // Calculate approximate position (each post is roughly 400-600px tall)
+      final estimatedPosition = index * 500.0;
+      _scrollController.animateTo(
+        estimatedPosition.clamp(
+          0.0,
+          _scrollController.position.maxScrollExtent,
+        ),
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeInOut,
+      );
     }
   }
 
@@ -765,15 +800,18 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
                 ),
               )
             : ListView.builder(
+                controller: _scrollController,
                 padding: const EdgeInsets.fromLTRB(24, 24, 24, 120),
                 itemCount: _posts.length,
                 itemBuilder: (context, index) {
                   final post = _posts[index];
+                  final isHighlighted = post.id == widget.activityIdToHighlight;
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 18),
                     child: _ActivityPostCard(
                       key: ValueKey(post.id),
                       post: post,
+                      isHighlighted: isHighlighted,
                       onGiveKudos: () => _giveKudos(post),
                       onComment: () => _addComment(post),
                       onReplyToComment: (comment) =>
@@ -809,6 +847,7 @@ class _ActivityPostCard extends StatefulWidget {
     required this.onDeleteComment,
     required this.viewerName,
     required this.currentUserId,
+    this.isHighlighted = false,
   });
 
   final ActivityPost post;
@@ -821,6 +860,7 @@ class _ActivityPostCard extends StatefulWidget {
   final void Function(ActivityComment) onDeleteComment;
   final String viewerName;
   final String? currentUserId;
+  final bool isHighlighted;
 
   @override
   State<_ActivityPostCard> createState() => _ActivityPostCardState();
@@ -852,8 +892,15 @@ class _ActivityPostCardState extends State<_ActivityPostCard> {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
-        color: colors.surfaceContainerHighest.withValues(alpha: 0.7),
-        border: Border.all(color: colors.surfaceContainerHighest),
+        color: widget.isHighlighted
+            ? colors.primary.withValues(alpha: 0.1)
+            : colors.surfaceContainerHighest.withValues(alpha: 0.7),
+        border: Border.all(
+          color: widget.isHighlighted
+              ? colors.primary.withValues(alpha: 0.5)
+              : colors.surfaceContainerHighest,
+          width: widget.isHighlighted ? 2 : 1,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
