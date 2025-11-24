@@ -189,6 +189,7 @@ class _LogActivityPageState extends State<LogActivityPage> {
           ),
           const SizedBox(height: 20),
           DropdownButtonFormField<String>(
+            // ignore: deprecated_member_use
             value: _selectedActivity,
             decoration: const InputDecoration(labelText: 'Choose activity'),
             items: _activities
@@ -201,6 +202,7 @@ class _LogActivityPageState extends State<LogActivityPage> {
             children: [
               Expanded(
                 child: DropdownButtonFormField<int>(
+                  // ignore: deprecated_member_use
                   value: _hours,
                   decoration: const InputDecoration(labelText: 'Hours'),
                   items: List.generate(
@@ -214,6 +216,7 @@ class _LogActivityPageState extends State<LogActivityPage> {
               const SizedBox(width: 12),
               Expanded(
                 child: DropdownButtonFormField<int>(
+                  // ignore: deprecated_member_use
                   value: _minutes,
                   decoration: const InputDecoration(labelText: 'Minutes'),
                   items: const [

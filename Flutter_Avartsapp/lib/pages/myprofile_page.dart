@@ -293,6 +293,7 @@ class _MyProfilePageState extends State<MyProfilePage>
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     DropdownButtonFormField<String>(
+                      // ignore: deprecated_member_use
                       value: selectedActivity,
                       decoration: const InputDecoration(labelText: 'Activity'),
                       hint: selectedActivity == null
@@ -319,6 +320,7 @@ class _MyProfilePageState extends State<MyProfilePage>
                       children: [
                         Expanded(
                           child: DropdownButtonFormField<int>(
+                            // ignore: deprecated_member_use
                             value: hours,
                             decoration: const InputDecoration(
                               labelText: 'Hours',
@@ -338,6 +340,7 @@ class _MyProfilePageState extends State<MyProfilePage>
                         const SizedBox(width: 12),
                         Expanded(
                           child: DropdownButtonFormField<int>(
+                            // ignore: deprecated_member_use
                             value: minutes,
                             decoration: const InputDecoration(
                               labelText: 'Minutes',
@@ -639,7 +642,7 @@ class _MyProfilePageState extends State<MyProfilePage>
       child: ListView.separated(
         padding: const EdgeInsets.fromLTRB(24, 24, 24, 48),
         itemCount: _activities.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 16),
+        separatorBuilder: (_, _) => const SizedBox(height: 16),
         itemBuilder: (context, index) {
           final activity = _activities[index];
           return _ActivityCard(

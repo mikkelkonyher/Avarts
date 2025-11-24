@@ -45,10 +45,8 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
             ActivityComment parseComment(Map<String, dynamic> commentMap) {
               final repliesData = commentMap['replies'] as List? ?? [];
               final replies = repliesData
-                  .where((reply) => reply is Map<String, dynamic>)
-                  .map<ActivityComment>(
-                    (reply) => parseComment(reply as Map<String, dynamic>),
-                  )
+                  .whereType<Map<String, dynamic>>()
+                  .map<ActivityComment>((reply) => parseComment(reply))
                   .toList();
 
               return ActivityComment(
@@ -63,10 +61,8 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
             }
 
             comments = commentsData
-                .where((comment) => comment is Map<String, dynamic>)
-                .map<ActivityComment>(
-                  (comment) => parseComment(comment as Map<String, dynamic>),
-                )
+                .whereType<Map<String, dynamic>>()
+                .map<ActivityComment>((comment) => parseComment(comment))
                 .toList();
           } else {
             comments = <ActivityComment>[];
@@ -106,12 +102,14 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
 
     if (result == true) {
       // Activity was posted successfully
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Activity posted successfully!'),
-          duration: Duration(seconds: 2),
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Activity posted successfully!'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
       // Refresh the feed to show the new activity
       await _loadFeed();
     }

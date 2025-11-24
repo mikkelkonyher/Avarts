@@ -31,7 +31,7 @@ class ImageUploadService {
 
     try {
       // Generate a unique file name
-      final fileName = '${DateTime.now().millisecondsSinceEpoch}_${userId}.jpg';
+      final fileName = '${DateTime.now().millisecondsSinceEpoch}_$userId.jpg';
       final filePath = '$userId/$fileName';
 
       // Upload to Supabase Storage
@@ -98,7 +98,7 @@ class ImageUploadService {
     try {
       // Create a temporary file from bytes
       final tempDir = Directory.systemTemp;
-      final fileName = '${DateTime.now().millisecondsSinceEpoch}_${userId}.jpg';
+      final fileName = '${DateTime.now().millisecondsSinceEpoch}_$userId.jpg';
       final tempFile = File('${tempDir.path}/$fileName');
       await tempFile.writeAsBytes(bytes);
 

@@ -123,7 +123,7 @@ class EarnedBadgesPage extends StatelessWidget {
             ),
           );
         },
-        separatorBuilder: (_, __) => const SizedBox(height: 16),
+        separatorBuilder: (_, _) => const SizedBox(height: 16),
         itemCount: _badges.length,
       ),
     );
@@ -169,10 +169,7 @@ class _BadgeIcon extends StatelessWidget {
                       0.2126, 0.7152, 0.0722, 0, 0, // Blue channel
                       0, 0, 0, 1, 0, // Alpha channel
                     ]),
-              child: Text(
-                '🐱',
-                style: const TextStyle(fontSize: 26),
-              ),
+              child: Text('🐱', style: const TextStyle(fontSize: 26)),
             )
           : Icon(badge.icon, color: accent, size: 28),
     );

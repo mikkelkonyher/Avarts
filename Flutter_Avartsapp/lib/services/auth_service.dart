@@ -374,6 +374,7 @@ class AuthService {
     } catch (e) {
       // Profile update might fail if table doesn't exist or permissions issue
       // Log but don't fail login
+      // ignore: avoid_print
       print('Warning: Failed to ensure profile setup: $e');
     }
   }
