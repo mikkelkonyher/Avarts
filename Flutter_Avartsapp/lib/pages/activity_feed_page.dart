@@ -1066,7 +1066,7 @@ class _ActivityPostCardState extends State<_ActivityPostCard> {
   }
 }
 
-class _CommentWidget extends StatelessWidget {
+class _CommentWidget extends StatefulWidget {
   const _CommentWidget({
     required this.comment,
     required this.currentUserId,
@@ -1089,6 +1089,13 @@ class _CommentWidget extends StatelessWidget {
   final ColorScheme colors;
   final String Function(DateTime) timeAgo;
 
+  @override
+  State<_CommentWidget> createState() => _CommentWidgetState();
+}
+
+class _CommentWidgetState extends State<_CommentWidget> {
+  bool _repliesExpanded = false;
+
   static const List<String> _availableEmojis = [
     '👍',
     '❤️',
@@ -1108,11 +1115,27 @@ class _CommentWidget extends StatelessWidget {
     '✨',
   ];
 
+  // Helper to count all replies recursively
+  int _countAllReplies(List<ActivityComment> replies) {
+    int count = 0;
+    for (final reply in replies) {
+      count += 1; // Count the reply itself
+      if (reply.replies.isNotEmpty) {
+        count += _countAllReplies(reply.replies); // Count nested replies
+      }
+    }
+    return count;
+  }
+
   @override
   Widget build(BuildContext context) {
     final isOwnComment =
-        currentUserId != null && comment.userId == currentUserId;
-    final hasReplies = comment.replies.isNotEmpty;
+        widget.currentUserId != null &&
+        widget.comment.userId == widget.currentUserId;
+    final hasReplies = widget.comment.replies.isNotEmpty;
+    final replyCount = hasReplies
+        ? _countAllReplies(widget.comment.replies)
+        : 0;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -1124,11 +1147,11 @@ class _CommentWidget extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 12,
-                backgroundColor: colors.primary.withValues(alpha: 0.15),
+                backgroundColor: widget.colors.primary.withValues(alpha: 0.15),
                 child: Text(
-                  comment.author.characters.first,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colors.primary,
+                  widget.comment.author.characters.first,
+                  style: widget.theme.textTheme.bodySmall?.copyWith(
+                    color: widget.colors.primary,
                     fontWeight: FontWeight.bold,
                     fontSize: 10,
                   ),
@@ -1142,36 +1165,38 @@ class _CommentWidget extends StatelessWidget {
                     Row(
                       children: [
                         Text(
-                          comment.author,
-                          style: theme.textTheme.bodySmall?.copyWith(
+                          widget.comment.author,
+                          style: widget.theme.textTheme.bodySmall?.copyWith(
                             fontWeight: FontWeight.w600,
-                            color: colors.onSurface,
+                            color: widget.colors.onSurface,
                           ),
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          timeAgo(comment.createdAt),
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: colors.onSurface.withValues(alpha: 0.5),
+                          widget.timeAgo(widget.comment.createdAt),
+                          style: widget.theme.textTheme.bodySmall?.copyWith(
+                            color: widget.colors.onSurface.withValues(
+                              alpha: 0.5,
+                            ),
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      comment.content,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: colors.onSurface.withValues(alpha: 0.9),
+                      widget.comment.content,
+                      style: widget.theme.textTheme.bodySmall?.copyWith(
+                        color: widget.colors.onSurface.withValues(alpha: 0.9),
                       ),
                     ),
                     const SizedBox(height: 4),
                     // Reactions display
-                    if (comment.reactions.isNotEmpty) ...[
+                    if (widget.comment.reactions.isNotEmpty) ...[
                       Wrap(
                         spacing: 4,
                         runSpacing: 4,
                         children: [
-                          ...comment.reactions
+                          ...widget.comment.reactions
                               .fold<Map<String, int>>(<String, int>{}, (
                                 map,
                                 r,
@@ -1181,16 +1206,19 @@ class _CommentWidget extends StatelessWidget {
                               })
                               .entries
                               .map((entry) {
-                                final hasUserReaction = comment.reactions.any(
-                                  (r) =>
-                                      r.emoji == entry.key &&
-                                      r.userId == currentUserId,
-                                );
+                                final hasUserReaction = widget.comment.reactions
+                                    .any(
+                                      (r) =>
+                                          r.emoji == entry.key &&
+                                          r.userId == widget.currentUserId,
+                                    );
                                 return GestureDetector(
-                                  onTap: () =>
-                                      onShowReactionUsers(comment, entry.key),
+                                  onTap: () => widget.onShowReactionUsers(
+                                    widget.comment,
+                                    entry.key,
+                                  ),
                                   onLongPress: () =>
-                                      onReact(comment, entry.key),
+                                      widget.onReact(widget.comment, entry.key),
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(
                                       horizontal: 6,
@@ -1198,17 +1226,21 @@ class _CommentWidget extends StatelessWidget {
                                     ),
                                     decoration: BoxDecoration(
                                       color: hasUserReaction
-                                          ? colors.primary.withValues(
+                                          ? widget.colors.primary.withValues(
                                               alpha: 0.15,
                                             )
-                                          : colors.surfaceContainerHighest,
+                                          : widget
+                                                .colors
+                                                .surfaceContainerHighest,
                                       borderRadius: BorderRadius.circular(12),
                                       border: Border.all(
                                         color: hasUserReaction
-                                            ? colors.primary.withValues(
+                                            ? widget.colors.primary.withValues(
                                                 alpha: 0.3,
                                               )
-                                            : colors.surfaceContainerHighest,
+                                            : widget
+                                                  .colors
+                                                  .surfaceContainerHighest,
                                         width: 1,
                                       ),
                                     ),
@@ -1222,11 +1254,14 @@ class _CommentWidget extends StatelessWidget {
                                         const SizedBox(width: 4),
                                         Text(
                                           '${entry.value}',
-                                          style: theme.textTheme.bodySmall
+                                          style: widget
+                                              .theme
+                                              .textTheme
+                                              .bodySmall
                                               ?.copyWith(
                                                 color: hasUserReaction
-                                                    ? colors.primary
-                                                    : colors.onSurface
+                                                    ? widget.colors.primary
+                                                    : widget.colors.onSurface
                                                           .withValues(
                                                             alpha: 0.7,
                                                           ),
@@ -1246,7 +1281,7 @@ class _CommentWidget extends StatelessWidget {
                     Row(
                       children: [
                         TextButton(
-                          onPressed: () => onReply(comment),
+                          onPressed: () => widget.onReply(widget.comment),
                           style: TextButton.styleFrom(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 8,
@@ -1257,17 +1292,53 @@ class _CommentWidget extends StatelessWidget {
                           ),
                           child: Text(
                             'Reply',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: colors.primary,
+                            style: widget.theme.textTheme.bodySmall?.copyWith(
+                              color: widget.colors.primary,
                             ),
                           ),
                         ),
+                        if (hasReplies) ...[
+                          const SizedBox(width: 4),
+                          TextButton(
+                            onPressed: () {
+                              setState(() {
+                                _repliesExpanded = !_repliesExpanded;
+                              });
+                            },
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  _repliesExpanded
+                                      ? Icons.expand_less
+                                      : Icons.expand_more,
+                                  size: 14,
+                                  color: widget.colors.primary,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '$replyCount ${replyCount == 1 ? 'reply' : 'replies'}',
+                                  style: widget.theme.textTheme.bodySmall
+                                      ?.copyWith(color: widget.colors.primary),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                         const SizedBox(width: 4),
                         Builder(
                           builder: (context) {
                             // Find user's current reaction (if any)
-                            final userReaction = comment.reactions
-                                .where((r) => r.userId == currentUserId)
+                            final userReaction = widget.comment.reactions
+                                .where((r) => r.userId == widget.currentUserId)
                                 .firstOrNull;
 
                             return PopupMenuButton<String>(
@@ -1277,8 +1348,10 @@ class _CommentWidget extends StatelessWidget {
                                     : Icons.add_reaction_outlined,
                                 size: 16,
                                 color: userReaction != null
-                                    ? colors.primary
-                                    : colors.onSurface.withValues(alpha: 0.7),
+                                    ? widget.colors.primary
+                                    : widget.colors.onSurface.withValues(
+                                        alpha: 0.7,
+                                      ),
                               ),
                               tooltip: userReaction != null
                                   ? 'Change reaction (currently ${userReaction.emoji})'
@@ -1305,28 +1378,32 @@ class _CommentWidget extends StatelessWidget {
                                             isCurrentReaction
                                                 ? 'Remove'
                                                 : 'React',
-                                            style: theme.textTheme.bodySmall,
+                                            style: widget
+                                                .theme
+                                                .textTheme
+                                                .bodySmall,
                                           ),
                                         ),
                                         if (isCurrentReaction)
                                           Icon(
                                             Icons.check,
                                             size: 16,
-                                            color: colors.primary,
+                                            color: widget.colors.primary,
                                           ),
                                       ],
                                     ),
                                   );
                                 }).toList();
                               },
-                              onSelected: (emoji) => onReact(comment, emoji),
+                              onSelected: (emoji) =>
+                                  widget.onReact(widget.comment, emoji),
                             );
                           },
                         ),
                         if (isOwnComment) ...[
                           const SizedBox(width: 4),
                           TextButton(
-                            onPressed: () => onDelete(comment),
+                            onPressed: () => widget.onDelete(widget.comment),
                             style: TextButton.styleFrom(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 8,
@@ -1337,8 +1414,8 @@ class _CommentWidget extends StatelessWidget {
                             ),
                             child: Text(
                               'Delete',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: colors.error,
+                              style: widget.theme.textTheme.bodySmall?.copyWith(
+                                color: widget.colors.error,
                               ),
                             ),
                           ),
@@ -1350,22 +1427,22 @@ class _CommentWidget extends StatelessWidget {
               ),
             ],
           ),
-          if (hasReplies) ...[
+          if (hasReplies && _repliesExpanded) ...[
             const SizedBox(height: 8),
             Padding(
               padding: const EdgeInsets.only(left: 32),
               child: Column(
-                children: comment.replies.map((reply) {
+                children: widget.comment.replies.map((reply) {
                   return _CommentWidget(
                     comment: reply,
-                    currentUserId: currentUserId,
-                    onReply: onReply,
-                    onReact: onReact,
-                    onShowReactionUsers: onShowReactionUsers,
-                    onDelete: onDelete,
-                    theme: theme,
-                    colors: colors,
-                    timeAgo: timeAgo,
+                    currentUserId: widget.currentUserId,
+                    onReply: widget.onReply,
+                    onReact: widget.onReact,
+                    onShowReactionUsers: widget.onShowReactionUsers,
+                    onDelete: widget.onDelete,
+                    theme: widget.theme,
+                    colors: widget.colors,
+                    timeAgo: widget.timeAgo,
                   );
                 }).toList(),
               ),
