@@ -140,6 +140,39 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
     );
   }
 
+  Future<void> _showKudosUsers(ActivityPost post) async {
+    if (post.id == null || post.kudos == 0) return;
+
+    try {
+      final users = await _activityService.getKudosUsers(post.id!);
+      if (!mounted) return;
+
+      await showModalBottomSheet(
+        context: context,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        builder: (context) {
+          return _UsersListBottomSheet(
+            title: 'Kudos',
+            users: users,
+            icon: Icons.favorite,
+            theme: Theme.of(context),
+          );
+        },
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to load kudos: ${e.toString()}'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _giveKudos(ActivityPost post) async {
     if (post.id == null) return;
 
@@ -438,6 +471,41 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
     }
   }
 
+  Future<void> _showReactionUsers(ActivityComment comment, String emoji) async {
+    try {
+      final users = await _activityService.getReactionUsers(
+        comment.id,
+        emoji: emoji,
+      );
+      if (!mounted) return;
+
+      await showModalBottomSheet(
+        context: context,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        builder: (context) {
+          return _UsersListBottomSheet(
+            title: '$emoji Reactions',
+            users: users,
+            icon: null,
+            theme: Theme.of(context),
+            showEmoji: false,
+          );
+        },
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to load reactions: ${e.toString()}'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _toggleReaction(
     ActivityPost post,
     ActivityComment comment,
@@ -707,6 +775,9 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
                           _replyToComment(post, comment),
                       onToggleReaction: (post, comment, emoji) =>
                           _toggleReaction(post, comment, emoji),
+                      onShowKudosUsers: (post) => _showKudosUsers(post),
+                      onShowReactionUsers: (comment, emoji) =>
+                          _showReactionUsers(comment, emoji),
                       onDeleteComment: (comment) =>
                           _deleteComment(post, comment),
                       viewerName: widget.loginResult.displayName,
@@ -728,6 +799,8 @@ class _ActivityPostCard extends StatefulWidget {
     required this.onComment,
     required this.onReplyToComment,
     required this.onToggleReaction,
+    required this.onShowKudosUsers,
+    required this.onShowReactionUsers,
     required this.onDeleteComment,
     required this.viewerName,
     required this.currentUserId,
@@ -738,6 +811,8 @@ class _ActivityPostCard extends StatefulWidget {
   final VoidCallback onComment;
   final void Function(ActivityComment) onReplyToComment;
   final void Function(ActivityPost, ActivityComment, String) onToggleReaction;
+  final void Function(ActivityPost) onShowKudosUsers;
+  final void Function(ActivityComment, String) onShowReactionUsers;
   final void Function(ActivityComment) onDeleteComment;
   final String viewerName;
   final String? currentUserId;
@@ -852,21 +927,32 @@ class _ActivityPostCardState extends State<_ActivityPostCard> {
                   ),
                 ),
               ),
-              TextButton.icon(
-                onPressed: widget.onGiveKudos,
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
+              GestureDetector(
+                onTap: widget.onGiveKudos,
+                onLongPress: widget.post.kudos > 0
+                    ? () => widget.onShowKudosUsers(widget.post)
+                    : null,
+                child: TextButton.icon(
+                  onPressed: widget.onGiveKudos,
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                  ),
+                  icon: Icon(
+                    widget.post.viewerHasKudoed
+                        ? Icons.favorite
+                        : Icons.favorite_border,
+                    color: widget.post.viewerHasKudoed
+                        ? colors.primary
+                        : colors.onSurface.withValues(alpha: 0.7),
+                    size: 18,
+                  ),
+                  label: GestureDetector(
+                    onTap: widget.post.kudos > 0
+                        ? () => widget.onShowKudosUsers(widget.post)
+                        : null,
+                    child: Text('${widget.post.kudos}'),
+                  ),
                 ),
-                icon: Icon(
-                  widget.post.viewerHasKudoed
-                      ? Icons.favorite
-                      : Icons.favorite_border,
-                  color: widget.post.viewerHasKudoed
-                      ? colors.primary
-                      : colors.onSurface.withValues(alpha: 0.7),
-                  size: 18,
-                ),
-                label: Text('${widget.post.kudos}'),
               ),
               TextButton.icon(
                 onPressed: () {
@@ -903,6 +989,8 @@ class _ActivityPostCardState extends State<_ActivityPostCard> {
                 onReply: widget.onReplyToComment,
                 onReact: (comment, emoji) =>
                     widget.onToggleReaction(widget.post, comment, emoji),
+                onShowReactionUsers: (comment, emoji) =>
+                    widget.onShowReactionUsers(comment, emoji),
                 onDelete: widget.onDeleteComment,
                 theme: theme,
                 colors: colors,
@@ -979,6 +1067,7 @@ class _CommentWidget extends StatelessWidget {
     required this.currentUserId,
     required this.onReply,
     required this.onReact,
+    required this.onShowReactionUsers,
     required this.onDelete,
     required this.theme,
     required this.colors,
@@ -989,6 +1078,7 @@ class _CommentWidget extends StatelessWidget {
   final String? currentUserId;
   final void Function(ActivityComment) onReply;
   final void Function(ActivityComment, String) onReact;
+  final void Function(ActivityComment, String) onShowReactionUsers;
   final void Function(ActivityComment) onDelete;
   final ThemeData theme;
   final ColorScheme colors;
@@ -1092,7 +1182,10 @@ class _CommentWidget extends StatelessWidget {
                                       r.userId == currentUserId,
                                 );
                                 return GestureDetector(
-                                  onTap: () => onReact(comment, entry.key),
+                                  onTap: () =>
+                                      onShowReactionUsers(comment, entry.key),
+                                  onLongPress: () =>
+                                      onReact(comment, entry.key),
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(
                                       horizontal: 6,
@@ -1263,6 +1356,7 @@ class _CommentWidget extends StatelessWidget {
                     currentUserId: currentUserId,
                     onReply: onReply,
                     onReact: onReact,
+                    onShowReactionUsers: onShowReactionUsers,
                     onDelete: onDelete,
                     theme: theme,
                     colors: colors,
@@ -1274,6 +1368,133 @@ class _CommentWidget extends StatelessWidget {
           ],
         ],
       ),
+    );
+  }
+}
+
+class _UsersListBottomSheet extends StatelessWidget {
+  const _UsersListBottomSheet({
+    required this.title,
+    required this.users,
+    required this.icon,
+    required this.theme,
+    this.showEmoji = true,
+  });
+
+  final String title;
+  final List<Map<String, dynamic>> users;
+  final IconData? icon;
+  final ThemeData theme;
+  final bool showEmoji;
+
+  static String _timeAgo(DateTime dateTime) {
+    final diff = DateTime.now().difference(dateTime);
+    if (diff.inMinutes < 1) return 'Just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    return '${diff.inDays}d ago';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = theme.colorScheme;
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      minChildSize: 0.4,
+      maxChildSize: 0.9,
+      builder: (context, scrollController) {
+        return Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(
+                    color: colors.surfaceContainerHighest,
+                    width: 1,
+                  ),
+                ),
+              ),
+              child: Row(
+                children: [
+                  if (icon != null) ...[
+                    Icon(icon, color: colors.primary),
+                    const SizedBox(width: 12),
+                  ],
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: users.isEmpty
+                  ? Center(
+                      child: Text(
+                        'No users yet',
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          color: colors.onSurface.withValues(alpha: 0.6),
+                        ),
+                      ),
+                    )
+                  : ListView.builder(
+                      controller: scrollController,
+                      padding: const EdgeInsets.all(16),
+                      itemCount: users.length,
+                      itemBuilder: (context, index) {
+                        final user = users[index];
+                        final displayName =
+                            user['display_name'] as String? ?? 'User';
+                        final createdAt = user['created_at'] as String?;
+                        final emoji = user['emoji'] as String?;
+
+                        return ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: colors.primary.withValues(
+                              alpha: 0.15,
+                            ),
+                            child: Text(
+                              displayName.characters.first.toUpperCase(),
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                color: colors.primary,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          title: Text(displayName),
+                          subtitle: createdAt != null
+                              ? Text(
+                                  _timeAgo(DateTime.parse(createdAt)),
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: colors.onSurface.withValues(
+                                      alpha: 0.6,
+                                    ),
+                                  ),
+                                )
+                              : null,
+                          trailing: showEmoji && emoji != null
+                              ? Text(
+                                  emoji,
+                                  style: const TextStyle(fontSize: 24),
+                                )
+                              : null,
+                        );
+                      },
+                    ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

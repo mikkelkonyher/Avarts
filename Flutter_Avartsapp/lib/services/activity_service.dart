@@ -588,6 +588,160 @@ class ActivityService {
     }
   }
 
+  /// Gets the list of users who gave kudos to an activity
+  ///
+  /// [activityId] - ID of the activity
+  ///
+  /// Returns a list of user info maps with user_id and display name
+  /// Throws [Exception] if fetching fails
+  Future<List<Map<String, dynamic>>> getKudosUsers(String activityId) async {
+    try {
+      // Fetch kudos with user info
+      final kudosResponse = await client
+          .from('activity_kudos')
+          .select('user_id, created_at')
+          .eq('activity_id', activityId)
+          .order('created_at', ascending: false);
+
+      final kudosList = List<Map<String, dynamic>>.from(kudosResponse);
+      if (kudosList.isEmpty) {
+        return [];
+      }
+
+      // Get unique user IDs
+      final userIds = kudosList.map((k) => k['user_id'] as String).toSet();
+
+      // Fetch profiles
+      final profilesResponse = await client
+          .from('profiles')
+          .select('id, user_name')
+          .inFilter('id', userIds.toList());
+
+      final profiles = List<Map<String, dynamic>>.from(profilesResponse);
+      final profilesByUserId = <String, Map<String, dynamic>>{};
+      for (final profile in profiles) {
+        profilesByUserId[profile['id'] as String] = profile;
+      }
+
+      // Helper to get display name
+      String getUserDisplayName(String userId) {
+        final currentUser = client.auth.currentUser;
+        if (currentUser != null && currentUser.id == userId) {
+          return _getUserDisplayNameFromMetadata(
+            currentUser.userMetadata,
+            currentUser.email,
+          );
+        }
+
+        final profile = profilesByUserId[userId];
+        if (profile != null) {
+          final userName = profile['user_name'] as String?;
+          if (userName != null && userName.isNotEmpty) {
+            return userName;
+          }
+        }
+
+        return 'User';
+      }
+
+      // Build result with user info
+      return kudosList.map((kudo) {
+        final userId = kudo['user_id'] as String;
+        return {
+          'user_id': userId,
+          'display_name': getUserDisplayName(userId),
+          'created_at': kudo['created_at'] as String,
+        };
+      }).toList();
+    } on PostgrestException catch (e) {
+      throw Exception('Failed to fetch kudos users: ${e.message}');
+    } on Exception catch (e) {
+      throw Exception('Failed to fetch kudos users: ${e.toString()}');
+    }
+  }
+
+  /// Gets the list of users who reacted to a comment with a specific emoji
+  ///
+  /// [commentId] - ID of the comment
+  /// [emoji] - The emoji to filter by (optional, if null returns all reactions)
+  ///
+  /// Returns a list of user info maps with user_id, display name, and emoji
+  /// Throws [Exception] if fetching fails
+  Future<List<Map<String, dynamic>>> getReactionUsers(
+    String commentId, {
+    String? emoji,
+  }) async {
+    try {
+      // Build query
+      var queryBuilder = client
+          .from('comment_reactions')
+          .select('user_id, emoji, created_at')
+          .eq('comment_id', commentId);
+
+      if (emoji != null) {
+        queryBuilder = queryBuilder.eq('emoji', emoji);
+      }
+
+      final reactionsResponse = await queryBuilder.order('created_at', ascending: false);
+
+      final reactionsList = List<Map<String, dynamic>>.from(reactionsResponse);
+      if (reactionsList.isEmpty) {
+        return [];
+      }
+
+      // Get unique user IDs
+      final userIds = reactionsList.map((r) => r['user_id'] as String).toSet();
+
+      // Fetch profiles
+      final profilesResponse = await client
+          .from('profiles')
+          .select('id, user_name')
+          .inFilter('id', userIds.toList());
+
+      final profiles = List<Map<String, dynamic>>.from(profilesResponse);
+      final profilesByUserId = <String, Map<String, dynamic>>{};
+      for (final profile in profiles) {
+        profilesByUserId[profile['id'] as String] = profile;
+      }
+
+      // Helper to get display name
+      String getUserDisplayName(String userId) {
+        final currentUser = client.auth.currentUser;
+        if (currentUser != null && currentUser.id == userId) {
+          return _getUserDisplayNameFromMetadata(
+            currentUser.userMetadata,
+            currentUser.email,
+          );
+        }
+
+        final profile = profilesByUserId[userId];
+        if (profile != null) {
+          final userName = profile['user_name'] as String?;
+          if (userName != null && userName.isNotEmpty) {
+            return userName;
+          }
+        }
+
+        return 'User';
+      }
+
+      // Build result with user info
+      return reactionsList.map((reaction) {
+        final userId = reaction['user_id'] as String;
+        return {
+          'user_id': userId,
+          'display_name': getUserDisplayName(userId),
+          'emoji': reaction['emoji'] as String,
+          'created_at': reaction['created_at'] as String,
+        };
+      }).toList();
+    } on PostgrestException catch (e) {
+      throw Exception('Failed to fetch reaction users: ${e.message}');
+    } on Exception catch (e) {
+      throw Exception('Failed to fetch reaction users: ${e.toString()}');
+    }
+  }
+
   /// Adds or removes a reaction to a comment
   /// Users can only have ONE reaction per comment - changing emoji removes the old one
   ///
