@@ -41,20 +41,32 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
           final List<ActivityComment> comments;
 
           if (commentsData is List) {
+            // Helper function to recursively parse comments and their replies
+            ActivityComment parseComment(Map<String, dynamic> commentMap) {
+              final repliesData = commentMap['replies'] as List? ?? [];
+              final replies = repliesData
+                  .where((reply) => reply is Map<String, dynamic>)
+                  .map<ActivityComment>(
+                    (reply) => parseComment(reply as Map<String, dynamic>),
+                  )
+                  .toList();
+
+              return ActivityComment(
+                id: commentMap['id'] as String,
+                userId: commentMap['user_id'] as String,
+                author: commentMap['author'] as String,
+                content: commentMap['content'] as String,
+                createdAt: DateTime.parse(commentMap['created_at'] as String),
+                parentCommentId: commentMap['parent_comment_id'] as String?,
+                replies: replies,
+              );
+            }
+
             comments = commentsData
                 .where((comment) => comment is Map<String, dynamic>)
-                .map<ActivityComment>((comment) {
-                  final commentMap = comment as Map<String, dynamic>;
-                  return ActivityComment(
-                    id: commentMap['id'] as String,
-                    userId: commentMap['user_id'] as String,
-                    author: commentMap['author'] as String,
-                    content: commentMap['content'] as String,
-                    createdAt: DateTime.parse(
-                      commentMap['created_at'] as String,
-                    ),
-                  );
-                })
+                .map<ActivityComment>(
+                  (comment) => parseComment(comment as Map<String, dynamic>),
+                )
                 .toList();
           } else {
             comments = <ActivityComment>[];
@@ -164,6 +176,66 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
     }
   }
 
+  // Helper function to recursively remove a comment from the comment tree
+  List<ActivityComment> _removeCommentFromList(
+    List<ActivityComment> comments,
+    String commentId,
+  ) {
+    return comments.where((c) => c.id != commentId).map((comment) {
+      // Recursively remove from replies
+      final updatedReplies = _removeCommentFromList(comment.replies, commentId);
+      return ActivityComment(
+        id: comment.id,
+        userId: comment.userId,
+        author: comment.author,
+        content: comment.content,
+        createdAt: comment.createdAt,
+        parentCommentId: comment.parentCommentId,
+        replies: updatedReplies,
+      );
+    }).toList();
+  }
+
+  // Helper function to recursively add a reply to a comment
+  List<ActivityComment> _addReplyToCommentList(
+    List<ActivityComment> comments,
+    String parentCommentId,
+    ActivityComment newReply,
+  ) {
+    return comments.map((comment) {
+      if (comment.id == parentCommentId) {
+        // Found the parent, add reply to its replies list
+        final updatedReplies = List<ActivityComment>.from(comment.replies)
+          ..add(newReply);
+        return ActivityComment(
+          id: comment.id,
+          userId: comment.userId,
+          author: comment.author,
+          content: comment.content,
+          createdAt: comment.createdAt,
+          parentCommentId: comment.parentCommentId,
+          replies: updatedReplies,
+        );
+      } else {
+        // Recursively search in replies
+        final updatedReplies = _addReplyToCommentList(
+          comment.replies,
+          parentCommentId,
+          newReply,
+        );
+        return ActivityComment(
+          id: comment.id,
+          userId: comment.userId,
+          author: comment.author,
+          content: comment.content,
+          createdAt: comment.createdAt,
+          parentCommentId: comment.parentCommentId,
+          replies: updatedReplies,
+        );
+      }
+    }).toList();
+  }
+
   Future<void> _addComment(ActivityPost post) async {
     if (post.id == null) return;
 
@@ -254,6 +326,103 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
     }
   }
 
+  Future<void> _replyToComment(
+    ActivityPost post,
+    ActivityComment parentComment,
+  ) async {
+    if (post.id == null) return;
+
+    final controller = TextEditingController();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Reply to ${parentComment.author}'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            decoration: const InputDecoration(hintText: 'Write a reply...'),
+            maxLines: 3,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () =>
+                  Navigator.of(context).pop(controller.text.trim()),
+              child: const Text('Reply'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (result != null && result.isNotEmpty) {
+      try {
+        final commentResponse = await _activityService.addComment(
+          activityId: post.id!,
+          content: result,
+          parentCommentId: parentComment.id,
+        );
+
+        // Update local state with the new reply
+        setState(() {
+          final index = _posts.indexWhere((p) => p.id == post.id);
+          if (index != -1) {
+            final currentUser = AuthService().currentUser;
+            final currentUserId = currentUser?.id;
+            final authorName = widget.loginResult.displayName;
+
+            final newReply = ActivityComment(
+              id: commentResponse['id'] as String,
+              userId: currentUserId ?? '',
+              author: authorName,
+              content: result,
+              createdAt: DateTime.parse(
+                commentResponse['created_at'] as String,
+              ),
+              parentCommentId: parentComment.id,
+            );
+
+            // Create a new list with the updated comments (recursively add reply)
+            final updatedPost = _posts[index];
+            final updatedComments = _addReplyToCommentList(
+              updatedPost.comments,
+              parentComment.id,
+              newReply,
+            );
+
+            // Create a new ActivityPost with updated comments
+            _posts[index] = ActivityPost(
+              id: updatedPost.id,
+              author: updatedPost.author,
+              activity: updatedPost.activity,
+              title: updatedPost.title,
+              description: updatedPost.description,
+              duration: updatedPost.duration,
+              createdAt: updatedPost.createdAt,
+              mediaUrl: updatedPost.mediaUrl,
+              kudos: updatedPost.kudos,
+              comments: updatedComments,
+              viewerHasKudoed: updatedPost.viewerHasKudoed,
+            );
+          }
+        });
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to post reply: ${e.toString()}'),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    }
+  }
+
   Future<void> _deleteComment(
     ActivityPost post,
     ActivityComment comment,
@@ -282,14 +451,15 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
     );
 
     if (confirmed == true) {
-      // Optimistically remove comment from UI
+      // Optimistically remove comment from UI (recursively)
       setState(() {
         final postIndex = _posts.indexWhere((p) => p.id == post.id);
         if (postIndex != -1) {
           final updatedPost = _posts[postIndex];
-          final updatedComments = updatedPost.comments
-              .where((c) => c.id != comment.id)
-              .toList();
+          final updatedComments = _removeCommentFromList(
+            updatedPost.comments,
+            comment.id,
+          );
 
           // Create a new ActivityPost with updated comments
           _posts[postIndex] = ActivityPost(
@@ -407,6 +577,8 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
                       post: post,
                       onGiveKudos: () => _giveKudos(post),
                       onComment: () => _addComment(post),
+                      onReplyToComment: (comment) =>
+                          _replyToComment(post, comment),
                       onDeleteComment: (comment) =>
                           _deleteComment(post, comment),
                       viewerName: widget.loginResult.displayName,
@@ -426,6 +598,7 @@ class _ActivityPostCard extends StatefulWidget {
     required this.post,
     required this.onGiveKudos,
     required this.onComment,
+    required this.onReplyToComment,
     required this.onDeleteComment,
     required this.viewerName,
     required this.currentUserId,
@@ -434,6 +607,7 @@ class _ActivityPostCard extends StatefulWidget {
   final ActivityPost post;
   final VoidCallback onGiveKudos;
   final VoidCallback onComment;
+  final void Function(ActivityComment) onReplyToComment;
   final void Function(ActivityComment) onDeleteComment;
   final String viewerName;
   final String? currentUserId;
@@ -445,10 +619,24 @@ class _ActivityPostCard extends StatefulWidget {
 class _ActivityPostCardState extends State<_ActivityPostCard> {
   bool _commentsExpanded = false;
 
+  int _countAllComments(List<ActivityComment> comments) {
+    int count = 0;
+    for (final comment in comments) {
+      count += 1; // Count the comment itself
+      if (comment.replies.isNotEmpty) {
+        count += _countAllComments(
+          comment.replies,
+        ); // Count replies recursively
+      }
+    }
+    return count;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
+    final totalCommentCount = _countAllComments(widget.post.comments);
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -572,79 +760,21 @@ class _ActivityPostCardState extends State<_ActivityPostCard> {
                       ? colors.primary
                       : colors.onSurface.withValues(alpha: 0.7),
                 ),
-                label: Text('${widget.post.comments.length}'),
+                label: Text('$totalCommentCount'),
               ),
             ],
           ),
           if (_commentsExpanded && widget.post.comments.isNotEmpty) ...[
             const Divider(height: 24),
             ...widget.post.comments.map((comment) {
-              final isOwnComment =
-                  widget.currentUserId != null &&
-                  comment.userId == widget.currentUserId;
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    CircleAvatar(
-                      radius: 12,
-                      backgroundColor: colors.primary.withValues(alpha: 0.15),
-                      child: Text(
-                        comment.author.characters.first,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: colors.primary,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 10,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Text(
-                                comment.author,
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                  color: colors.onSurface,
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                _timeAgo(comment.createdAt),
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: colors.onSurface.withValues(
-                                    alpha: 0.5,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            comment.content,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: colors.onSurface.withValues(alpha: 0.9),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (isOwnComment)
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline, size: 16),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        color: colors.error,
-                        onPressed: () => widget.onDeleteComment(comment),
-                        tooltip: 'Delete comment',
-                      ),
-                  ],
-                ),
+              return _CommentWidget(
+                comment: comment,
+                currentUserId: widget.currentUserId,
+                onReply: widget.onReplyToComment,
+                onDelete: widget.onDeleteComment,
+                theme: theme,
+                colors: colors,
+                timeAgo: _timeAgo,
               );
             }),
             const SizedBox(height: 8),
@@ -669,7 +799,7 @@ class _ActivityPostCardState extends State<_ActivityPostCard> {
                 });
               },
               child: Text(
-                'View ${widget.post.comments.length} ${widget.post.comments.length == 1 ? 'comment' : 'comments'}',
+                'View $totalCommentCount ${totalCommentCount == 1 ? 'comment' : 'comments'}',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: colors.primary,
                 ),
@@ -708,5 +838,150 @@ class _ActivityPostCardState extends State<_ActivityPostCard> {
     final minutes = duration.inMinutes.remainder(60);
     if (hours == 0) return '$minutes min';
     return '${hours}h ${minutes.toString().padLeft(2, '0')}m';
+  }
+}
+
+class _CommentWidget extends StatelessWidget {
+  const _CommentWidget({
+    required this.comment,
+    required this.currentUserId,
+    required this.onReply,
+    required this.onDelete,
+    required this.theme,
+    required this.colors,
+    required this.timeAgo,
+  });
+
+  final ActivityComment comment;
+  final String? currentUserId;
+  final void Function(ActivityComment) onReply;
+  final void Function(ActivityComment) onDelete;
+  final ThemeData theme;
+  final ColorScheme colors;
+  final String Function(DateTime) timeAgo;
+
+  @override
+  Widget build(BuildContext context) {
+    final isOwnComment =
+        currentUserId != null && comment.userId == currentUserId;
+    final hasReplies = comment.replies.isNotEmpty;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(
+                radius: 12,
+                backgroundColor: colors.primary.withValues(alpha: 0.15),
+                child: Text(
+                  comment.author.characters.first,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colors.primary,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 10,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          comment.author,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: colors.onSurface,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          timeAgo(comment.createdAt),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: colors.onSurface.withValues(alpha: 0.5),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      comment.content,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colors.onSurface.withValues(alpha: 0.9),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        TextButton(
+                          onPressed: () => onReply(comment),
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          child: Text(
+                            'Reply',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colors.primary,
+                            ),
+                          ),
+                        ),
+                        if (isOwnComment)
+                          TextButton(
+                            onPressed: () => onDelete(comment),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            child: Text(
+                              'Delete',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: colors.error,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (hasReplies) ...[
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.only(left: 32),
+              child: Column(
+                children: comment.replies.map((reply) {
+                  return _CommentWidget(
+                    comment: reply,
+                    currentUserId: currentUserId,
+                    onReply: onReply,
+                    onDelete: onDelete,
+                    theme: theme,
+                    colors: colors,
+                    timeAgo: timeAgo,
+                  );
+                }).toList(),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 }

@@ -6,7 +6,9 @@ class ActivityComment {
     required this.author,
     required this.content,
     required this.createdAt,
-  });
+    this.parentCommentId,
+    List<ActivityComment>? replies,
+  }) : replies = replies ?? <ActivityComment>[];
 
   /// Comment ID from database
   final String id;
@@ -22,6 +24,12 @@ class ActivityComment {
 
   /// When the comment was created
   final DateTime createdAt;
+
+  /// ID of the parent comment if this is a reply (null for top-level comments)
+  final String? parentCommentId;
+
+  /// List of replies to this comment
+  final List<ActivityComment> replies;
 }
 
 /// Model representing an activity post in the feed

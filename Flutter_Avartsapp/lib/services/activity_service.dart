@@ -362,20 +362,58 @@ class ActivityService {
         // Get comments for this activity
         final activityComments = commentsByActivity[activityId] ?? [];
 
-        // Format comments with full data including IDs
-        final List<Map<String, dynamic>> commentData = [];
+        // Format comments with full data including IDs and organize hierarchically
+        final List<Map<String, dynamic>> allComments = [];
         for (final comment in activityComments) {
           final commentId = comment['id'] as String;
           final commentUserId = comment['user_id'] as String;
           final commentContent = comment['content'] as String;
           final commentCreatedAt = comment['created_at'] as String;
+          final parentCommentId = comment['parent_comment_id'] as String?;
           final authorName = getUserDisplayName(commentUserId);
-          commentData.add({
+          allComments.add({
             'id': commentId,
             'user_id': commentUserId,
             'author': authorName,
             'content': commentContent,
             'created_at': commentCreatedAt,
+            'parent_comment_id': parentCommentId,
+          });
+        }
+
+        // Organize comments hierarchically: separate top-level comments and replies
+        final List<Map<String, dynamic>> topLevelComments = [];
+        final Map<String, List<Map<String, dynamic>>> repliesByParent = {};
+
+        for (final comment in allComments) {
+          final parentId = comment['parent_comment_id'] as String?;
+          if (parentId == null) {
+            // Top-level comment
+            topLevelComments.add(comment);
+          } else {
+            // Reply to a comment
+            repliesByParent.putIfAbsent(parentId, () => []).add(comment);
+          }
+        }
+
+        // Build hierarchical structure - recursively add replies to comments
+        List<Map<String, dynamic>> buildCommentTree(
+            Map<String, dynamic> comment) {
+          final commentId = comment['id'] as String;
+          final directReplies = repliesByParent[commentId] ?? [];
+          return directReplies.map((reply) {
+            return {
+              ...reply,
+              'replies': buildCommentTree(reply),
+            };
+          }).toList();
+        }
+
+        final List<Map<String, dynamic>> commentData = [];
+        for (final topLevelComment in topLevelComments) {
+          commentData.add({
+            ...topLevelComment,
+            'replies': buildCommentTree(topLevelComment),
           });
         }
 
@@ -445,12 +483,14 @@ class ActivityService {
   ///
   /// [activityId] - ID of the activity to comment on
   /// [content] - The comment content
+  /// [parentCommentId] - Optional ID of the parent comment if this is a reply
   ///
   /// Returns the created comment record
   /// Throws [Exception] if adding comment fails
   Future<Map<String, dynamic>> addComment({
     required String activityId,
     required String content,
+    String? parentCommentId,
   }) async {
     final userId = currentUserId;
     if (userId == null) {
@@ -458,13 +498,19 @@ class ActivityService {
     }
 
     try {
+      final Map<String, dynamic> insertData = {
+        'activity_id': activityId,
+        'user_id': userId,
+        'content': content,
+      };
+
+      if (parentCommentId != null) {
+        insertData['parent_comment_id'] = parentCommentId;
+      }
+
       final response = await client
           .from('activity_comments')
-          .insert({
-            'activity_id': activityId,
-            'user_id': userId,
-            'content': content,
-          })
+          .insert(insertData)
           .select()
           .single();
 
