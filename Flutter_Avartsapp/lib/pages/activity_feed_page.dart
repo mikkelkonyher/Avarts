@@ -403,6 +403,7 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 18),
                     child: _ActivityPostCard(
+                      key: ValueKey(post.id),
                       post: post,
                       onGiveKudos: () => _giveKudos(post),
                       onComment: () => _addComment(post),
@@ -419,8 +420,9 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
   }
 }
 
-class _ActivityPostCard extends StatelessWidget {
+class _ActivityPostCard extends StatefulWidget {
   const _ActivityPostCard({
+    super.key,
     required this.post,
     required this.onGiveKudos,
     required this.onComment,
@@ -435,6 +437,13 @@ class _ActivityPostCard extends StatelessWidget {
   final void Function(ActivityComment) onDeleteComment;
   final String viewerName;
   final String? currentUserId;
+
+  @override
+  State<_ActivityPostCard> createState() => _ActivityPostCardState();
+}
+
+class _ActivityPostCardState extends State<_ActivityPostCard> {
+  bool _commentsExpanded = false;
 
   @override
   Widget build(BuildContext context) {
@@ -456,7 +465,7 @@ class _ActivityPostCard extends StatelessWidget {
               CircleAvatar(
                 backgroundColor: colors.primary.withValues(alpha: 0.15),
                 child: Text(
-                  post.author.characters.first,
+                  widget.post.author.characters.first,
                   style: theme.textTheme.titleMedium?.copyWith(
                     color: colors.primary,
                     fontWeight: FontWeight.bold,
@@ -468,9 +477,12 @@ class _ActivityPostCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(post.author, style: theme.textTheme.titleMedium),
                     Text(
-                      _timeAgo(post.createdAt),
+                      widget.post.author,
+                      style: theme.textTheme.titleMedium,
+                    ),
+                    Text(
+                      _timeAgo(widget.post.createdAt),
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: colors.onSurface.withValues(alpha: 0.6),
                       ),
@@ -479,7 +491,7 @@ class _ActivityPostCard extends StatelessWidget {
                 ),
               ),
               Chip(
-                label: Text(post.activity),
+                label: Text(widget.post.activity),
                 backgroundColor: colors.primary.withValues(alpha: 0.12),
                 labelStyle: theme.textTheme.labelSmall?.copyWith(
                   color: colors.primary,
@@ -488,12 +500,12 @@ class _ActivityPostCard extends StatelessWidget {
               ),
             ],
           ),
-          if (post.mediaUrl != null) ...[
+          if (widget.post.mediaUrl != null) ...[
             const SizedBox(height: 14),
             ClipRRect(
               borderRadius: BorderRadius.circular(20),
               child: Image.network(
-                post.mediaUrl!,
+                widget.post.mediaUrl!,
                 height: 180,
                 width: double.infinity,
                 fit: BoxFit.cover,
@@ -502,13 +514,13 @@ class _ActivityPostCard extends StatelessWidget {
           ],
           const SizedBox(height: 16),
           Text(
-            post.title,
+            widget.post.title,
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w700,
             ),
           ),
           const SizedBox(height: 6),
-          Text(post.description, style: theme.textTheme.bodyMedium),
+          Text(widget.post.description, style: theme.textTheme.bodyMedium),
           const SizedBox(height: 12),
           Row(
             children: [
@@ -516,54 +528,107 @@ class _ActivityPostCard extends StatelessWidget {
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
-                  _formatDuration(post.duration),
+                  _formatDuration(widget.post.duration),
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: colors.onSurface.withValues(alpha: 0.7),
                   ),
                 ),
               ),
               TextButton.icon(
-                onPressed: onGiveKudos,
+                onPressed: widget.onGiveKudos,
                 style: TextButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                 ),
                 icon: Icon(
-                  post.viewerHasKudoed ? Icons.favorite : Icons.favorite_border,
-                  color: post.viewerHasKudoed
+                  widget.post.viewerHasKudoed
+                      ? Icons.favorite
+                      : Icons.favorite_border,
+                  color: widget.post.viewerHasKudoed
                       ? colors.primary
                       : colors.onSurface.withValues(alpha: 0.7),
                   size: 18,
                 ),
-                label: Text('${post.kudos}'),
+                label: Text('${widget.post.kudos}'),
               ),
               TextButton.icon(
-                onPressed: onComment,
+                onPressed: () {
+                  if (widget.post.comments.isNotEmpty) {
+                    setState(() {
+                      _commentsExpanded = !_commentsExpanded;
+                    });
+                  } else {
+                    widget.onComment();
+                  }
+                },
                 style: TextButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                 ),
-                icon: const Icon(Icons.chat_bubble_outline, size: 18),
-                label: Text('${post.comments.length}'),
+                icon: Icon(
+                  _commentsExpanded
+                      ? Icons.chat_bubble
+                      : Icons.chat_bubble_outline,
+                  size: 18,
+                  color: _commentsExpanded
+                      ? colors.primary
+                      : colors.onSurface.withValues(alpha: 0.7),
+                ),
+                label: Text('${widget.post.comments.length}'),
               ),
             ],
           ),
-          if (post.comments.isNotEmpty) ...[
+          if (_commentsExpanded && widget.post.comments.isNotEmpty) ...[
             const Divider(height: 24),
-            ...post.comments.take(2).map((comment) {
+            ...widget.post.comments.map((comment) {
               final isOwnComment =
-                  currentUserId != null && comment.userId == currentUserId;
+                  widget.currentUserId != null &&
+                  comment.userId == widget.currentUserId;
               return Padding(
-                padding: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.only(bottom: 12),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    CircleAvatar(
+                      radius: 12,
+                      backgroundColor: colors.primary.withValues(alpha: 0.15),
+                      child: Text(
+                        comment.author.characters.first,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colors.primary,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          Row(
+                            children: [
+                              Text(
+                                comment.author,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  color: colors.onSurface,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                _timeAgo(comment.createdAt),
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: colors.onSurface.withValues(
+                                    alpha: 0.5,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 2),
                           Text(
-                            '${comment.author}: ${comment.content}',
+                            comment.content,
                             style: theme.textTheme.bodySmall?.copyWith(
-                              color: colors.onSurface.withValues(alpha: 0.8),
+                              color: colors.onSurface.withValues(alpha: 0.9),
                             ),
                           ),
                         ],
@@ -571,24 +636,59 @@ class _ActivityPostCard extends StatelessWidget {
                     ),
                     if (isOwnComment)
                       IconButton(
-                        icon: const Icon(Icons.delete, size: 16),
+                        icon: const Icon(Icons.delete_outline, size: 16),
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
                         color: colors.error,
-                        onPressed: () => onDeleteComment(comment),
+                        onPressed: () => widget.onDeleteComment(comment),
                         tooltip: 'Delete comment',
                       ),
                   ],
                 ),
               );
             }),
-            if (post.comments.length > 2)
-              Text(
-                '+${post.comments.length - 2} more comments',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: colors.onSurface.withValues(alpha: 0.6),
+            const SizedBox(height: 8),
+            TextButton.icon(
+              onPressed: widget.onComment,
+              icon: const Icon(Icons.add_comment, size: 16),
+              label: const Text('Add a comment'),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
                 ),
               ),
+            ),
+          ],
+          if (!_commentsExpanded && widget.post.comments.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: () {
+                setState(() {
+                  _commentsExpanded = true;
+                });
+              },
+              child: Text(
+                'View ${widget.post.comments.length} ${widget.post.comments.length == 1 ? 'comment' : 'comments'}',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colors.primary,
+                ),
+              ),
+            ),
+          ],
+          if (!_commentsExpanded && widget.post.comments.isEmpty) ...[
+            const SizedBox(height: 4),
+            TextButton.icon(
+              onPressed: widget.onComment,
+              icon: const Icon(Icons.add_comment, size: 16),
+              label: const Text('Add a comment'),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+              ),
+            ),
           ],
         ],
       ),
