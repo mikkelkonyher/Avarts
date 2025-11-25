@@ -322,92 +322,61 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
     }).toList();
   }
 
-  Future<void> _addComment(ActivityPost post) async {
-    if (post.id == null) return;
+  Future<void> _addComment(ActivityPost post, String content) async {
+    if (post.id == null || content.isEmpty) return;
 
-    final controller = TextEditingController();
-    final result = await showDialog<String>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Leave a comment'),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            decoration: const InputDecoration(hintText: 'What did you think?'),
-            maxLines: 3,
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () =>
-                  Navigator.of(context).pop(controller.text.trim()),
-              child: const Text('Post'),
-            ),
-          ],
-        );
-      },
-    );
+    try {
+      final commentResponse = await _activityService.addComment(
+        activityId: post.id!,
+        content: content,
+      );
 
-    if (result != null && result.isNotEmpty) {
-      try {
-        final commentResponse = await _activityService.addComment(
-          activityId: post.id!,
-          content: result,
-        );
+      // Update local state with the new comment
+      setState(() {
+        final index = _posts.indexWhere((p) => p.id == post.id);
+        if (index != -1) {
+          final currentUser = AuthService().currentUser;
+          final currentUserId = currentUser?.id;
+          final authorName = widget.loginResult.displayName;
 
-        // Update local state with the new comment
-        setState(() {
-          final index = _posts.indexWhere((p) => p.id == post.id);
-          if (index != -1) {
-            final currentUser = AuthService().currentUser;
-            final currentUserId = currentUser?.id;
-            final authorName = widget.loginResult.displayName;
+          final newComment = ActivityComment(
+            id: commentResponse['id'] as String,
+            userId: currentUserId ?? '',
+            author: authorName,
+            content: content,
+            createdAt: DateTime.parse(commentResponse['created_at'] as String),
+          );
 
-            final newComment = ActivityComment(
-              id: commentResponse['id'] as String,
-              userId: currentUserId ?? '',
-              author: authorName,
-              content: result,
-              createdAt: DateTime.parse(
-                commentResponse['created_at'] as String,
-              ),
-            );
+          // Create a new list with the updated comments
+          final updatedPost = _posts[index];
+          final updatedComments = List<ActivityComment>.from(
+            updatedPost.comments,
+          )..add(newComment);
 
-            // Create a new list with the updated comments
-            final updatedPost = _posts[index];
-            final updatedComments = List<ActivityComment>.from(
-              updatedPost.comments,
-            )..add(newComment);
-
-            // Create a new ActivityPost with updated comments
-            _posts[index] = ActivityPost(
-              id: updatedPost.id,
-              author: updatedPost.author,
-              activity: updatedPost.activity,
-              title: updatedPost.title,
-              description: updatedPost.description,
-              duration: updatedPost.duration,
-              createdAt: updatedPost.createdAt,
-              mediaUrl: updatedPost.mediaUrl,
-              kudos: updatedPost.kudos,
-              comments: updatedComments,
-              viewerHasKudoed: updatedPost.viewerHasKudoed,
-            );
-          }
-        });
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Failed to post comment: ${e.toString()}'),
-              duration: const Duration(seconds: 2),
-            ),
+          // Create a new ActivityPost with updated comments
+          _posts[index] = ActivityPost(
+            id: updatedPost.id,
+            author: updatedPost.author,
+            activity: updatedPost.activity,
+            title: updatedPost.title,
+            description: updatedPost.description,
+            duration: updatedPost.duration,
+            createdAt: updatedPost.createdAt,
+            mediaUrl: updatedPost.mediaUrl,
+            kudos: updatedPost.kudos,
+            comments: updatedComments,
+            viewerHasKudoed: updatedPost.viewerHasKudoed,
           );
         }
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to post comment: ${e.toString()}'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
       }
     }
   }
@@ -415,96 +384,66 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
   Future<void> _replyToComment(
     ActivityPost post,
     ActivityComment parentComment,
+    String content,
   ) async {
-    if (post.id == null) return;
+    if (post.id == null || content.isEmpty) return;
 
-    final controller = TextEditingController();
-    final result = await showDialog<String>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text('Reply to ${parentComment.author}'),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            decoration: const InputDecoration(hintText: 'Write a reply...'),
-            maxLines: 3,
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () =>
-                  Navigator.of(context).pop(controller.text.trim()),
-              child: const Text('Reply'),
-            ),
-          ],
-        );
-      },
-    );
+    try {
+      final commentResponse = await _activityService.addComment(
+        activityId: post.id!,
+        content: content,
+        parentCommentId: parentComment.id,
+      );
 
-    if (result != null && result.isNotEmpty) {
-      try {
-        final commentResponse = await _activityService.addComment(
-          activityId: post.id!,
-          content: result,
-          parentCommentId: parentComment.id,
-        );
+      // Update local state with the new reply
+      setState(() {
+        final index = _posts.indexWhere((p) => p.id == post.id);
+        if (index != -1) {
+          final currentUser = AuthService().currentUser;
+          final currentUserId = currentUser?.id;
+          final authorName = widget.loginResult.displayName;
 
-        // Update local state with the new reply
-        setState(() {
-          final index = _posts.indexWhere((p) => p.id == post.id);
-          if (index != -1) {
-            final currentUser = AuthService().currentUser;
-            final currentUserId = currentUser?.id;
-            final authorName = widget.loginResult.displayName;
+          final newReply = ActivityComment(
+            id: commentResponse['id'] as String,
+            userId: currentUserId ?? '',
+            author: authorName,
+            content: content,
+            createdAt: DateTime.parse(commentResponse['created_at'] as String),
+            parentCommentId: parentComment.id,
+          );
 
-            final newReply = ActivityComment(
-              id: commentResponse['id'] as String,
-              userId: currentUserId ?? '',
-              author: authorName,
-              content: result,
-              createdAt: DateTime.parse(
-                commentResponse['created_at'] as String,
-              ),
-              parentCommentId: parentComment.id,
-            );
+          // Create a new list with the updated comments (recursively add reply)
+          final updatedPost = _posts[index];
+          final updatedComments = _addReplyToCommentList(
+            updatedPost.comments,
+            parentComment.id,
+            newReply,
+          );
 
-            // Create a new list with the updated comments (recursively add reply)
-            final updatedPost = _posts[index];
-            final updatedComments = _addReplyToCommentList(
-              updatedPost.comments,
-              parentComment.id,
-              newReply,
-            );
-
-            // Create a new ActivityPost with updated comments
-            _posts[index] = ActivityPost(
-              id: updatedPost.id,
-              author: updatedPost.author,
-              activity: updatedPost.activity,
-              title: updatedPost.title,
-              description: updatedPost.description,
-              duration: updatedPost.duration,
-              createdAt: updatedPost.createdAt,
-              mediaUrl: updatedPost.mediaUrl,
-              kudos: updatedPost.kudos,
-              comments: updatedComments,
-              viewerHasKudoed: updatedPost.viewerHasKudoed,
-            );
-          }
-        });
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Failed to post reply: ${e.toString()}'),
-              duration: const Duration(seconds: 2),
-            ),
+          // Create a new ActivityPost with updated comments
+          _posts[index] = ActivityPost(
+            id: updatedPost.id,
+            author: updatedPost.author,
+            activity: updatedPost.activity,
+            title: updatedPost.title,
+            description: updatedPost.description,
+            duration: updatedPost.duration,
+            createdAt: updatedPost.createdAt,
+            mediaUrl: updatedPost.mediaUrl,
+            kudos: updatedPost.kudos,
+            comments: updatedComments,
+            viewerHasKudoed: updatedPost.viewerHasKudoed,
           );
         }
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to post reply: ${e.toString()}'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
       }
     }
   }
@@ -813,9 +752,9 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
                       post: post,
                       isHighlighted: isHighlighted,
                       onGiveKudos: () => _giveKudos(post),
-                      onComment: () => _addComment(post),
-                      onReplyToComment: (comment) =>
-                          _replyToComment(post, comment),
+                      onComment: (content) => _addComment(post, content),
+                      onReplyToComment: (comment, content) =>
+                          _replyToComment(post, comment, content),
                       onToggleReaction: (post, comment, emoji) =>
                           _toggleReaction(post, comment, emoji),
                       onShowKudosUsers: (post) => _showKudosUsers(post),
@@ -852,8 +791,8 @@ class _ActivityPostCard extends StatefulWidget {
 
   final ActivityPost post;
   final VoidCallback onGiveKudos;
-  final VoidCallback onComment;
-  final void Function(ActivityComment) onReplyToComment;
+  final void Function(String) onComment;
+  final void Function(ActivityComment, String) onReplyToComment;
   final void Function(ActivityPost, ActivityComment, String) onToggleReaction;
   final void Function(ActivityPost) onShowKudosUsers;
   final void Function(ActivityComment, String) onShowReactionUsers;
@@ -880,6 +819,39 @@ class _ActivityPostCardState extends State<_ActivityPostCard> {
       }
     }
     return count;
+  }
+
+  final TextEditingController _commentController = TextEditingController();
+  final FocusNode _commentFocusNode = FocusNode();
+  bool _isSubmitting = false;
+
+  @override
+  void dispose() {
+    _commentController.dispose();
+    _commentFocusNode.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleSubmitComment() async {
+    final content = _commentController.text.trim();
+    if (content.isEmpty) return;
+
+    setState(() {
+      _isSubmitting = true;
+    });
+
+    try {
+      widget.onComment(content);
+      _commentController.clear();
+      // Keep focus if needed, or unfocus
+      _commentFocusNode.unfocus();
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
+    }
   }
 
   @override
@@ -1008,13 +980,20 @@ class _ActivityPostCardState extends State<_ActivityPostCard> {
               ),
               TextButton.icon(
                 onPressed: () {
-                  if (widget.post.comments.isNotEmpty) {
-                    setState(() {
-                      _commentsExpanded = !_commentsExpanded;
-                    });
-                  } else {
-                    widget.onComment();
-                  }
+                  setState(() {
+                    if (!_commentsExpanded) {
+                      _commentsExpanded = true;
+                      // Small delay to allow expansion before focusing
+                      Future.delayed(const Duration(milliseconds: 100), () {
+                        if (mounted) {
+                          _commentFocusNode.requestFocus();
+                        }
+                      });
+                    } else {
+                      _commentsExpanded = false;
+                      _commentFocusNode.unfocus();
+                    }
+                  });
                 },
                 style: TextButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -1032,34 +1011,78 @@ class _ActivityPostCardState extends State<_ActivityPostCard> {
               ),
             ],
           ),
-          if (_commentsExpanded && widget.post.comments.isNotEmpty) ...[
-            const Divider(height: 24),
-            ...widget.post.comments.map((comment) {
-              return _CommentWidget(
-                comment: comment,
-                currentUserId: widget.currentUserId,
-                onReply: widget.onReplyToComment,
-                onReact: (comment, emoji) =>
-                    widget.onToggleReaction(widget.post, comment, emoji),
-                onShowReactionUsers: (comment, emoji) =>
-                    widget.onShowReactionUsers(comment, emoji),
-                onDelete: widget.onDeleteComment,
-                theme: theme,
-                colors: colors,
-                timeAgo: _timeAgo,
-              );
-            }),
-            const SizedBox(height: 8),
-            TextButton.icon(
-              onPressed: widget.onComment,
-              icon: const Icon(Icons.add_comment, size: 16),
-              label: const Text('Add a comment'),
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
+          if (_commentsExpanded) ...[
+            if (widget.post.comments.isNotEmpty) ...[
+              const Divider(height: 24),
+              ...widget.post.comments.map((comment) {
+                return _CommentWidget(
+                  comment: comment,
+                  currentUserId: widget.currentUserId,
+                  onReply: widget.onReplyToComment,
+                  onReact: (comment, emoji) =>
+                      widget.onToggleReaction(widget.post, comment, emoji),
+                  onShowReactionUsers: (comment, emoji) =>
+                      widget.onShowReactionUsers(comment, emoji),
+                  onDelete: widget.onDeleteComment,
+                  theme: theme,
+                  colors: colors,
+                  timeAgo: _timeAgo,
+                );
+              }),
+            ],
+            const SizedBox(height: 16),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                CircleAvatar(
+                  radius: 16,
+                  backgroundColor: colors.primary.withValues(alpha: 0.15),
+                  child: Text(
+                    widget.viewerName.characters.first,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: colors.primary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
-              ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextField(
+                    controller: _commentController,
+                    focusNode: _commentFocusNode,
+                    minLines: 1,
+                    maxLines: 5,
+                    textCapitalization: TextCapitalization.sentences,
+                    decoration: InputDecoration(
+                      hintText: 'Write a comment...',
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(20),
+                        borderSide: BorderSide.none,
+                      ),
+                      filled: true,
+                      fillColor: colors.surfaceContainerHighest.withValues(
+                        alpha: 0.5,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  onPressed: _isSubmitting ? null : _handleSubmitComment,
+                  icon: _isSubmitting
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Icon(Icons.send_rounded, color: colors.primary),
+                ),
+              ],
             ),
           ],
           if (!_commentsExpanded && widget.post.comments.isNotEmpty) ...[
@@ -1081,7 +1104,16 @@ class _ActivityPostCardState extends State<_ActivityPostCard> {
           if (!_commentsExpanded && widget.post.comments.isEmpty) ...[
             const SizedBox(height: 4),
             TextButton.icon(
-              onPressed: widget.onComment,
+              onPressed: () {
+                setState(() {
+                  _commentsExpanded = true;
+                  Future.delayed(const Duration(milliseconds: 100), () {
+                    if (mounted) {
+                      _commentFocusNode.requestFocus();
+                    }
+                  });
+                });
+              },
               icon: const Icon(Icons.add_comment, size: 16),
               label: const Text('Add a comment'),
               style: TextButton.styleFrom(
@@ -1128,7 +1160,7 @@ class _CommentWidget extends StatefulWidget {
 
   final ActivityComment comment;
   final String? currentUserId;
-  final void Function(ActivityComment) onReply;
+  final void Function(ActivityComment, String) onReply;
   final void Function(ActivityComment, String) onReact;
   final void Function(ActivityComment, String) onShowReactionUsers;
   final void Function(ActivityComment) onDelete;
@@ -1142,6 +1174,41 @@ class _CommentWidget extends StatefulWidget {
 
 class _CommentWidgetState extends State<_CommentWidget> {
   bool _repliesExpanded = false;
+  bool _isReplying = false;
+  final TextEditingController _replyController = TextEditingController();
+  final FocusNode _replyFocusNode = FocusNode();
+  bool _isSubmittingReply = false;
+
+  @override
+  void dispose() {
+    _replyController.dispose();
+    _replyFocusNode.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleSubmitReply() async {
+    final content = _replyController.text.trim();
+    if (content.isEmpty) return;
+
+    setState(() {
+      _isSubmittingReply = true;
+    });
+
+    try {
+      widget.onReply(widget.comment, content);
+      _replyController.clear();
+      setState(() {
+        _isReplying = false;
+        _repliesExpanded = true; // Auto-expand replies to show the new one
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmittingReply = false;
+        });
+      }
+    }
+  }
 
   static const List<String> _availableEmojis = [
     '👍',
@@ -1328,7 +1395,23 @@ class _CommentWidgetState extends State<_CommentWidget> {
                     Row(
                       children: [
                         TextButton(
-                          onPressed: () => widget.onReply(widget.comment),
+                          onPressed: () {
+                            setState(() {
+                              _isReplying = !_isReplying;
+                              if (_isReplying) {
+                                Future.delayed(
+                                  const Duration(milliseconds: 100),
+                                  () {
+                                    if (mounted) {
+                                      _replyFocusNode.requestFocus();
+                                    }
+                                  },
+                                );
+                              } else {
+                                _replyFocusNode.unfocus();
+                              }
+                            });
+                          },
                           style: TextButton.styleFrom(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 8,
@@ -1338,9 +1421,13 @@ class _CommentWidgetState extends State<_CommentWidget> {
                             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           ),
                           child: Text(
-                            'Reply',
+                            _isReplying ? 'Cancel' : 'Reply',
                             style: widget.theme.textTheme.bodySmall?.copyWith(
-                              color: widget.colors.primary,
+                              color: _isReplying
+                                  ? widget.colors.onSurface.withValues(
+                                      alpha: 0.6,
+                                    )
+                                  : widget.colors.primary,
                             ),
                           ),
                         ),
@@ -1474,6 +1561,72 @@ class _CommentWidgetState extends State<_CommentWidget> {
               ),
             ],
           ),
+          if (_isReplying) ...[
+            const SizedBox(height: 8),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                CircleAvatar(
+                  radius: 12,
+                  backgroundColor: widget.colors.primary.withValues(
+                    alpha: 0.15,
+                  ),
+                  child: Text(
+                    'Me',
+                    style: widget.theme.textTheme.bodySmall?.copyWith(
+                      color: widget.colors.primary,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 8,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextField(
+                    controller: _replyController,
+                    focusNode: _replyFocusNode,
+                    minLines: 1,
+                    maxLines: 3,
+                    textCapitalization: TextCapitalization.sentences,
+                    style: widget.theme.textTheme.bodyMedium,
+                    decoration: InputDecoration(
+                      hintText: 'Reply to ${widget.comment.author}...',
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide.none,
+                      ),
+                      filled: true,
+                      fillColor: widget.colors.surfaceContainerHighest
+                          .withValues(alpha: 0.5),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                IconButton(
+                  onPressed: _isSubmittingReply ? null : _handleSubmitReply,
+                  icon: _isSubmittingReply
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Icon(
+                          Icons.send_rounded,
+                          color: widget.colors.primary,
+                          size: 20,
+                        ),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  visualDensity: VisualDensity.compact,
+                ),
+              ],
+            ),
+          ],
           if (hasReplies && _repliesExpanded) ...[
             const SizedBox(height: 8),
             Padding(
