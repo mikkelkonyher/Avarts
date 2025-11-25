@@ -13,7 +13,7 @@ class CommentReaction {
   /// User ID of the user who reacted
   final String userId;
 
-  /// Emoji string (e.g., '👍', '❤️', '😂')
+  /// Emoji string
   final String emoji;
 
   /// When the reaction was created
