@@ -8,6 +8,10 @@ import 'package:avarts/services/auth_service.dart';
 import 'package:avarts/services/activity_service.dart';
 import 'package:avarts/widgets/feed/activity_post_card.dart';
 import 'package:avarts/widgets/feed/users_list_bottom_sheet.dart';
+import 'package:avarts/models/notification_item.dart';
+import 'package:avarts/services/notification_service.dart';
+import 'package:avarts/utils/date_utils.dart' as date_utils;
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ActivityFeedPage extends StatefulWidget {
   const ActivityFeedPage({
@@ -25,15 +29,19 @@ class ActivityFeedPage extends StatefulWidget {
 
 class _ActivityFeedPageState extends State<ActivityFeedPage> {
   final ActivityService _activityService = ActivityService();
+  final NotificationService _notificationService = NotificationService();
   final ScrollController _scrollController = ScrollController();
   List<ActivityPost> _posts = [];
+  List<NotificationItem> _notifications = [];
   bool _isLoading = true;
   String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
+    super.initState();
     _loadFeed();
+    _loadNotifications();
   }
 
   @override
@@ -129,6 +137,174 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
         _errorMessage = 'Failed to load feed: ${e.toString()}';
         _isLoading = false;
       });
+    }
+  }
+
+  Future<void> _loadNotifications() async {
+    final prefs = await SharedPreferences.getInstance();
+    final lastSeenTimestamp = prefs.getString(
+      'last_seen_notification_timestamp',
+    );
+    DateTime? lastSeenTime;
+
+    if (lastSeenTimestamp != null) {
+      lastSeenTime = DateTime.parse(lastSeenTimestamp);
+    }
+
+    final newNotifications = await _notificationService.getNotifications();
+    if (mounted) {
+      setState(() {
+        // Mark existing notifications as read
+        for (var notification in _notifications) {
+          notification.isRead = true;
+        }
+
+        // Add new notifications and mark as read/unread based on last seen time
+        final existingIds = _notifications.map((n) => n.id).toSet();
+        final trulyNewNotifications = newNotifications
+            .where((n) => !existingIds.contains(n.id))
+            .map((n) {
+              // Mark as read if it's older than last seen time
+              if (lastSeenTime != null && n.createdAt.isBefore(lastSeenTime)) {
+                n.isRead = true;
+              }
+              return n;
+            })
+            .toList();
+
+        // Combine and keep last 20
+        _notifications = [
+          ...trulyNewNotifications,
+          ..._notifications,
+        ].take(20).toList();
+      });
+    }
+  }
+
+  int get _unreadCount => _notifications.where((n) => !n.isRead).length;
+
+  void _showNotifications() async {
+    // Save the current timestamp as last seen
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      'last_seen_notification_timestamp',
+      DateTime.now().toIso8601String(),
+    );
+
+    // Mark all notifications as read
+    setState(() {
+      for (var notification in _notifications) {
+        notification.isRead = true;
+      }
+    });
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.6,
+          minChildSize: 0.4,
+          maxChildSize: 0.9,
+          expand: false,
+          builder: (context, scrollController) {
+            return Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Text(
+                    'Notifications',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: _notifications.isEmpty
+                      ? Center(
+                          child: Text(
+                            'No notifications yet',
+                            style: Theme.of(context).textTheme.bodyLarge,
+                          ),
+                        )
+                      : ListView.builder(
+                          controller: scrollController,
+                          itemCount: _notifications.length,
+                          itemBuilder: (context, index) {
+                            final notification = _notifications[index];
+                            return ListTile(
+                              leading: CircleAvatar(
+                                backgroundColor: Theme.of(
+                                  context,
+                                ).colorScheme.primaryContainer,
+                                child: Icon(
+                                  _getNotificationIcon(notification.type),
+                                  size: 20,
+                                ),
+                              ),
+                              title: RichText(
+                                text: TextSpan(
+                                  style: Theme.of(context).textTheme.bodyMedium,
+                                  children: [
+                                    TextSpan(
+                                      text: notification.actorName,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    TextSpan(
+                                      text: _getNotificationText(notification),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              subtitle: Text(
+                                date_utils.DateUtils.timeAgo(
+                                  notification.createdAt,
+                                ),
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                              onTap: () {
+                                Navigator.pop(context);
+                                _scrollToActivity(notification.activityId);
+                              },
+                            );
+                          },
+                        ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  IconData _getNotificationIcon(NotificationType type) {
+    switch (type) {
+      case NotificationType.kudo:
+        return Icons.favorite;
+      case NotificationType.comment:
+        return Icons.comment;
+      case NotificationType.reply:
+        return Icons.reply;
+      case NotificationType.reaction:
+        return Icons.add_reaction;
+    }
+  }
+
+  String _getNotificationText(NotificationItem notification) {
+    switch (notification.type) {
+      case NotificationType.kudo:
+        final title = notification.activityTitle ?? 'your activity';
+        return ' gave you kudos on "$title"';
+      case NotificationType.comment:
+        return ' commented on your activity.';
+      case NotificationType.reply:
+        return ' replied to your comment.';
+      case NotificationType.reaction:
+        return ' reacted to your comment.';
     }
   }
 
@@ -679,6 +855,15 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
       appBar: AppBar(
         title: const Text('Feed'),
         actions: [
+          IconButton(
+            tooltip: 'Notifications',
+            icon: Badge(
+              isLabelVisible: _unreadCount > 0,
+              label: Text('$_unreadCount'),
+              child: const Icon(Icons.notifications_outlined),
+            ),
+            onPressed: _showNotifications,
+          ),
           IconButton(
             tooltip: 'View insights',
             icon: const Icon(Icons.insights_rounded),
