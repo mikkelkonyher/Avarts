@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:avarts/models/activity_post.dart';
+import 'package:avarts/models/activity_comment.dart';
+import 'package:avarts/models/comment_reaction.dart';
 import 'package:avarts/pages/myprofile_page.dart';
 import 'package:avarts/pages/log_activity_page.dart';
 import 'package:avarts/services/auth_service.dart';

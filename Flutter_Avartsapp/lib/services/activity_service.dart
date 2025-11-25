@@ -1,5 +1,6 @@
 // Package imports
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import 'package:avarts/services/auth_service.dart';
 
 /// Service class for handling activity-related operations with Supabase
@@ -282,9 +283,7 @@ class ActivityService {
           .toList();
 
       // Extract all comment IDs
-      final commentIds = commentsList
-          .map((c) => c['id'] as String)
-          .toSet();
+      final commentIds = commentsList.map((c) => c['id'] as String).toSet();
 
       // Fetch all reactions for these comments
       final reactionsResponse = commentIds.isEmpty
@@ -397,7 +396,7 @@ class ActivityService {
           final commentCreatedAt = comment['created_at'] as String;
           final parentCommentId = comment['parent_comment_id'] as String?;
           final authorName = getUserDisplayName(commentUserId);
-          
+
           // Get reactions for this comment
           final commentReactions = reactionsByComment[commentId] ?? [];
           final reactionsData = commentReactions.map((reaction) {
@@ -408,7 +407,7 @@ class ActivityService {
               'created_at': reaction['created_at'] as String,
             };
           }).toList();
-          
+
           allComments.add({
             'id': commentId,
             'user_id': commentUserId,
@@ -437,14 +436,12 @@ class ActivityService {
 
         // Build hierarchical structure - recursively add replies to comments
         List<Map<String, dynamic>> buildCommentTree(
-            Map<String, dynamic> comment) {
+          Map<String, dynamic> comment,
+        ) {
           final commentId = comment['id'] as String;
           final directReplies = repliesByParent[commentId] ?? [];
           return directReplies.map((reply) {
-            return {
-              ...reply,
-              'replies': buildCommentTree(reply),
-            };
+            return {...reply, 'replies': buildCommentTree(reply)};
           }).toList();
         }
 
@@ -682,7 +679,10 @@ class ActivityService {
         queryBuilder = queryBuilder.eq('emoji', emoji);
       }
 
-      final reactionsResponse = await queryBuilder.order('created_at', ascending: false);
+      final reactionsResponse = await queryBuilder.order(
+        'created_at',
+        ascending: false,
+      );
 
       final reactionsList = List<Map<String, dynamic>>.from(reactionsResponse);
       if (reactionsList.isEmpty) {

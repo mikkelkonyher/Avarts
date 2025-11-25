@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:avarts/models/activity_post.dart';
+import 'package:avarts/models/activity_comment.dart';
 import 'package:avarts/utils/date_utils.dart' as utils;
 import 'package:avarts/widgets/feed/comment_widget.dart';
 
