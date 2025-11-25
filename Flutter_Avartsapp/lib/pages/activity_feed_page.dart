@@ -199,6 +199,8 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
       }
     });
 
+    if (!mounted) return;
+
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(

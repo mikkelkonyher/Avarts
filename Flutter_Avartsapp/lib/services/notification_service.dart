@@ -9,13 +9,10 @@ class NotificationService {
   Future<List<NotificationItem>> getNotifications() async {
     final userId = currentUserId;
     if (userId == null) {
-      print('NotificationService: No user ID');
       return [];
     }
 
     try {
-      print('NotificationService: Fetching notifications for user $userId');
-
       // 1. Get all activities created by the user (with titles)
       final activities = await client
           .from('activities')
@@ -31,8 +28,6 @@ class NotificationService {
           activity['id'] as String: activity['title'] as String,
       };
 
-      print('NotificationService: Found ${activityIds.length} user activities');
-
       // 2. Get all comments on these activities (to find replies/reactions)
       // We need comments where the USER is the author, to find replies/reactions to them
       final userComments = await client
@@ -44,10 +39,6 @@ class NotificationService {
           .map((c) => c['id'] as String)
           .toList();
 
-      print(
-        'NotificationService: Found ${userCommentIds.length} user comments',
-      );
-
       List<NotificationItem> notifications = [];
 
       // 3. Fetch Kudos on user's activities
@@ -57,8 +48,6 @@ class NotificationService {
             .select('user_id, activity_id, created_at')
             .inFilter('activity_id', activityIds)
             .neq('user_id', userId); // Exclude self-kudos
-
-        print('NotificationService: Found ${(kudos as List).length} kudos');
 
         for (final kudo in kudos) {
           final activityId = kudo['activity_id'] as String;
@@ -83,10 +72,6 @@ class NotificationService {
             .neq('user_id', userId) // Exclude self-comments
             .isFilter('parent_comment_id', null); // Only top-level comments
 
-        print(
-          'NotificationService: Found ${(comments as List).length} comments',
-        );
-
         for (final comment in comments) {
           notifications.add(
             NotificationItem(
@@ -110,8 +95,6 @@ class NotificationService {
             .inFilter('parent_comment_id', userCommentIds)
             .neq('user_id', userId);
 
-        print('NotificationService: Found ${(replies as List).length} replies');
-
         for (final reply in replies) {
           notifications.add(
             NotificationItem(
@@ -132,10 +115,6 @@ class NotificationService {
             .select('user_id, comment_id, created_at, emoji')
             .inFilter('comment_id', userCommentIds)
             .neq('user_id', userId);
-
-        print(
-          'NotificationService: Found ${(reactions as List).length} reactions',
-        );
 
         // Need to map comment_id back to activity_id
         final commentActivityMap = {
@@ -166,13 +145,10 @@ class NotificationService {
       // Sort by date descending
       notifications.sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
-      print(
-        'NotificationService: Total notifications: ${notifications.length}',
-      );
       return notifications;
-    } catch (e, stackTrace) {
-      print('Error fetching notifications: $e');
-      print('Stack trace: $stackTrace');
+    } catch (e) {
+      // In production, you would use a proper logging framework here
+      // For now, we'll silently fail and return empty list
       return [];
     }
   }
