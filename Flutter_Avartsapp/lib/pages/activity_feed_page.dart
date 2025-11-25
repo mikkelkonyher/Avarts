@@ -35,6 +35,7 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
   List<NotificationItem> _notifications = [];
   bool _isLoading = true;
   String? _errorMessage;
+  String? _activityIdToExpandComments;
 
   @override
   void initState() {
@@ -267,6 +268,18 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
                               ),
                               onTap: () {
                                 Navigator.pop(context);
+                                // Set the activity to expand comments if it's a comment/reply/reaction notification
+                                if (notification.type ==
+                                        NotificationType.comment ||
+                                    notification.type ==
+                                        NotificationType.reply ||
+                                    notification.type ==
+                                        NotificationType.reaction) {
+                                  setState(() {
+                                    _activityIdToExpandComments =
+                                        notification.activityId;
+                                  });
+                                }
                                 _scrollToActivity(notification.activityId);
                               },
                             );
@@ -934,12 +947,16 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
                 itemBuilder: (context, index) {
                   final post = _posts[index];
                   final isHighlighted = post.id == widget.activityIdToHighlight;
+                  final shouldExpandComments =
+                      post.id == _activityIdToExpandComments;
+
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 18),
                     child: ActivityPostCard(
                       key: ValueKey(post.id),
                       post: post,
                       isHighlighted: isHighlighted,
+                      shouldExpandComments: shouldExpandComments,
                       onGiveKudos: () => _giveKudos(post),
                       onComment: (content) => _addComment(post, content),
                       onReplyToComment: (comment, content) =>

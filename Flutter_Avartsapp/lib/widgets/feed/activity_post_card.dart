@@ -18,6 +18,7 @@ class ActivityPostCard extends StatefulWidget {
     required this.viewerName,
     required this.currentUserId,
     this.isHighlighted = false,
+    this.shouldExpandComments = false,
   });
 
   final ActivityPost post;
@@ -31,6 +32,7 @@ class ActivityPostCard extends StatefulWidget {
   final String viewerName;
   final String? currentUserId;
   final bool isHighlighted;
+  final bool shouldExpandComments;
 
   @override
   State<ActivityPostCard> createState() => _ActivityPostCardState();
@@ -38,6 +40,26 @@ class ActivityPostCard extends StatefulWidget {
 
 class _ActivityPostCardState extends State<ActivityPostCard> {
   bool _commentsExpanded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Auto-expand comments if requested
+    if (widget.shouldExpandComments) {
+      _commentsExpanded = true;
+    }
+  }
+
+  @override
+  void didUpdateWidget(ActivityPostCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Auto-expand comments if the flag changed to true
+    if (widget.shouldExpandComments && !oldWidget.shouldExpandComments) {
+      setState(() {
+        _commentsExpanded = true;
+      });
+    }
+  }
 
   int _countAllComments(List<ActivityComment> comments) {
     int count = 0;
