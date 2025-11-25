@@ -160,15 +160,18 @@ class _ActivityPostCardState extends State<ActivityPostCard> {
                   ],
                 ),
               ),
-              Chip(
-                label: Text(widget.post.activity),
-                backgroundColor: colors.primary.withValues(alpha: 0.12),
-                labelStyle: theme.textTheme.labelSmall?.copyWith(
-                  color: colors.primary,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
             ],
+          ),
+          const SizedBox(height: 14),
+          Center(
+            child: Chip(
+              label: Text(widget.post.activity),
+              backgroundColor: colors.primary.withValues(alpha: 0.12),
+              labelStyle: theme.textTheme.labelSmall?.copyWith(
+                color: colors.primary,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ),
           if (widget.post.mediaUrl != null) ...[
             const SizedBox(height: 14),
