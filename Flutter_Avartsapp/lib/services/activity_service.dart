@@ -558,7 +558,7 @@ class ActivityService {
     }
   }
 
-  /// Deletes a comment
+  /// Deletes a comment and all its replies/reactions
   ///
   /// [commentId] - ID of the comment to delete
   ///
@@ -570,18 +570,61 @@ class ActivityService {
     }
 
     try {
-      await client
+      // 1. Verify ownership of the comment
+      final comment = await client
           .from('activity_comments')
-          .delete()
+          .select('user_id')
           .eq('id', commentId)
-          .eq(
-            'user_id',
-            userId,
-          ); // Ensure user can only delete their own comments
+          .maybeSingle();
+
+      if (comment == null) {
+        // Comment doesn't exist, maybe already deleted
+        return;
+      }
+
+      if (comment['user_id'] != userId) {
+        throw Exception('You can only delete your own comments');
+      }
+
+      // 2. Recursively delete replies
+      await _deleteRepliesRecursive(commentId);
+
+      // 3. Delete reactions for this comment
+      await client
+          .from('comment_reactions')
+          .delete()
+          .eq('comment_id', commentId);
+
+      // 4. Delete the comment itself
+      await client.from('activity_comments').delete().eq('id', commentId);
     } on PostgrestException catch (e) {
       throw Exception('Failed to delete comment: ${e.message}');
     } on Exception catch (e) {
       throw Exception('Failed to delete comment: ${e.toString()}');
+    }
+  }
+
+  /// Helper to recursively delete replies
+  Future<void> _deleteRepliesRecursive(String parentId) async {
+    // Fetch direct replies
+    final replies = await client
+        .from('activity_comments')
+        .select('id')
+        .eq('parent_comment_id', parentId);
+
+    final replyList = List<Map<String, dynamic>>.from(replies);
+
+    for (final reply in replyList) {
+      final replyId = reply['id'] as String;
+
+      // Recursively delete children of this reply
+      await _deleteRepliesRecursive(replyId);
+
+      // Delete reactions for this reply
+      await client.from('comment_reactions').delete().eq('comment_id', replyId);
+
+      // Delete the reply
+      await client.from('activity_comments').delete().eq('id', replyId);
     }
   }
 
