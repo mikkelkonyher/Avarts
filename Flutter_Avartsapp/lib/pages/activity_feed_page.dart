@@ -971,6 +971,7 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
               )
             : ListView.builder(
                 controller: _scrollController,
+                physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.fromLTRB(24, 24, 24, 120),
                 itemCount: _posts.length,
                 itemBuilder: (context, index) {
