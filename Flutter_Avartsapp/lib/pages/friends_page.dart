@@ -281,7 +281,7 @@ class _FriendsPageState extends State<FriendsPage> {
         const SizedBox(height: 24),
         if (_followers.isNotEmpty) ...[
           _SectionHeading(
-            title: 'Your followers',
+            title: 'Your lazy stalkers',
             subtitle: 'People who follow you',
           ),
           const SizedBox(height: 12),
