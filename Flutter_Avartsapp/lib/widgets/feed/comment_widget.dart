@@ -13,6 +13,8 @@ class CommentWidget extends StatefulWidget {
     required this.onDelete,
     required this.theme,
     required this.colors,
+    this.showReplyTo = false,
+    this.parentAuthor,
   });
 
   final ActivityComment comment;
@@ -23,6 +25,8 @@ class CommentWidget extends StatefulWidget {
   final void Function(ActivityComment) onDelete;
   final ThemeData theme;
   final ColorScheme colors;
+  final bool showReplyTo;
+  final String? parentAuthor;
 
   @override
   State<CommentWidget> createState() => _CommentWidgetState();
@@ -85,27 +89,44 @@ class _CommentWidgetState extends State<CommentWidget> {
     '✨',
   ];
 
-  // Helper to count all replies recursively
-  int _countAllReplies(List<ActivityComment> replies) {
-    int count = 0;
+  // Helper to collect all replies recursively
+  List<ActivityComment> _getAllDescendants(List<ActivityComment> replies) {
+    final all = <ActivityComment>[];
     for (final reply in replies) {
-      count += 1; // Count the reply itself
+      all.add(reply);
       if (reply.replies.isNotEmpty) {
-        count += _countAllReplies(reply.replies); // Count nested replies
+        all.addAll(_getAllDescendants(reply.replies));
       }
     }
-    return count;
+    return all;
   }
 
   @override
   Widget build(BuildContext context) {
+    final isTopLevel = widget.comment.parentCommentId == null;
     final isOwnComment =
         widget.currentUserId != null &&
         widget.comment.userId == widget.currentUserId;
-    final hasReplies = widget.comment.replies.isNotEmpty;
-    final replyCount = hasReplies
-        ? _countAllReplies(widget.comment.replies)
-        : 0;
+    final allReplies = isTopLevel
+        ? _getAllDescendants(widget.comment.replies)
+        : <ActivityComment>[];
+
+    if (isTopLevel) {
+      allReplies.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    }
+
+    final replyCount = isTopLevel ? allReplies.length : 0;
+    final hasReplies = replyCount > 0;
+
+    // Map for looking up parent authors
+    final Map<String, String> idToAuthor = {
+      widget.comment.id: widget.comment.author,
+    };
+    if (isTopLevel) {
+      for (final r in allReplies) {
+        idToAuthor[r.id] = r.author;
+      }
+    }
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -153,6 +174,32 @@ class _CommentWidgetState extends State<CommentWidget> {
                       ],
                     ),
                     const SizedBox(height: 2),
+                    if (widget.showReplyTo && widget.parentAuthor != null) ...[
+                      Text.rich(
+                        TextSpan(
+                          children: [
+                            TextSpan(
+                              text: 'Replying to ',
+                              style: widget.theme.textTheme.bodySmall?.copyWith(
+                                color: widget.colors.onSurface.withValues(
+                                  alpha: 0.5,
+                                ),
+                                fontSize: 11,
+                              ),
+                            ),
+                            TextSpan(
+                              text: '@${widget.parentAuthor}',
+                              style: widget.theme.textTheme.bodySmall?.copyWith(
+                                color: widget.colors.primary,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                    ],
                     Text(
                       widget.comment.content,
                       style: widget.theme.textTheme.bodySmall?.copyWith(
@@ -248,7 +295,10 @@ class _CommentWidgetState extends State<CommentWidget> {
                       ),
                       const SizedBox(height: 4),
                     ],
-                    Row(
+                    Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 4,
+                      runSpacing: 4,
                       children: [
                         TextButton(
                           onPressed: () {
@@ -287,8 +337,7 @@ class _CommentWidgetState extends State<CommentWidget> {
                             ),
                           ),
                         ),
-                        if (hasReplies) ...[
-                          const SizedBox(width: 4),
+                        if (isTopLevel && hasReplies)
                           TextButton(
                             onPressed: () {
                               setState(() {
@@ -322,8 +371,6 @@ class _CommentWidgetState extends State<CommentWidget> {
                               ],
                             ),
                           ),
-                        ],
-                        const SizedBox(width: 4),
                         Builder(
                           builder: (context) {
                             // Find user's current reaction (if any)
@@ -390,8 +437,7 @@ class _CommentWidgetState extends State<CommentWidget> {
                             );
                           },
                         ),
-                        if (isOwnComment) ...[
-                          const SizedBox(width: 4),
+                        if (isOwnComment)
                           TextButton(
                             onPressed: () => widget.onDelete(widget.comment),
                             style: TextButton.styleFrom(
@@ -409,7 +455,6 @@ class _CommentWidgetState extends State<CommentWidget> {
                               ),
                             ),
                           ),
-                        ],
                       ],
                     ),
                   ],
@@ -483,12 +528,16 @@ class _CommentWidgetState extends State<CommentWidget> {
               ],
             ),
           ],
-          if (hasReplies && _repliesExpanded) ...[
+          if (isTopLevel && hasReplies && _repliesExpanded) ...[
             const SizedBox(height: 8),
             Padding(
               padding: const EdgeInsets.only(left: 32),
               child: Column(
-                children: widget.comment.replies.map((reply) {
+                children: allReplies.map((reply) {
+                  final parentAuthor = idToAuthor[reply.parentCommentId];
+                  final isDirectReply =
+                      reply.parentCommentId == widget.comment.id;
+
                   return CommentWidget(
                     comment: reply,
                     currentUserId: widget.currentUserId,
@@ -498,6 +547,8 @@ class _CommentWidgetState extends State<CommentWidget> {
                     onDelete: widget.onDelete,
                     theme: widget.theme,
                     colors: widget.colors,
+                    showReplyTo: !isDirectReply,
+                    parentAuthor: parentAuthor,
                   );
                 }).toList(),
               ),
