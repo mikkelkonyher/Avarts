@@ -338,80 +338,100 @@ class _FriendTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: colors.surfaceContainerHighest),
       ),
-      child: Row(
+      child: Column(
         children: [
-          CircleAvatar(
-            radius: 28,
-            backgroundColor: avatarColor.withValues(alpha: 0.18),
-            backgroundImage: profile.avatarUrl != null
-                ? NetworkImage(profile.avatarUrl!)
-                : null,
-            child: profile.avatarUrl == null
-                ? Text(
-                    profile.displayName.isNotEmpty
-                        ? profile.displayName.characters.first.toUpperCase()
-                        : '?',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      color: avatarColor,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  )
-                : null,
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(profile.displayName, style: theme.textTheme.titleMedium),
-                const SizedBox(height: 4),
-                Text(
-                  '@${profile.userName}',
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: colors.onSurface.withValues(alpha: 0.65),
-                  ),
-                ),
-                if (profile.bio != null) ...[
-                  const SizedBox(height: 6),
-                  Text(
-                    profile.bio!,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: colors.onSurface.withValues(alpha: 0.7),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          Column(
+          // Avatar and username centered at top
+          Row(
             children: [
-              ElevatedButton.icon(
-                onPressed: onToggleFollow,
-                icon: Icon(isFollowing ? Icons.check : Icons.person_add),
-                label: Text(
-                  isFollowing
-                      ? 'Following'
-                      : (showFollowBackLabel ? 'Follow Back' : 'Follow'),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: isFollowing
-                      ? colors.primary.withValues(alpha: 0.2)
-                      : null,
-                  foregroundColor: isFollowing
-                      ? colors.primary
-                      : colors.onPrimary,
-                  minimumSize: const Size(0, 36),
+              CircleAvatar(
+                radius: 28,
+                backgroundColor: avatarColor.withValues(alpha: 0.18),
+                backgroundImage: profile.avatarUrl != null
+                    ? NetworkImage(profile.avatarUrl!)
+                    : null,
+                child: profile.avatarUrl == null
+                    ? Text(
+                        profile.displayName.isNotEmpty
+                            ? profile.displayName.characters.first.toUpperCase()
+                            : '?',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color: avatarColor,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      )
+                    : null,
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      profile.displayName,
+                      style: theme.textTheme.titleMedium,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '@${profile.userName}',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: colors.onSurface.withValues(alpha: 0.65),
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 8),
-              OutlinedButton.icon(
-                onPressed: isFollowing ? onChat : null,
-                icon: const Icon(Icons.chat_bubble_outline, size: 18),
-                label: const Text('Chat'),
-                style: OutlinedButton.styleFrom(minimumSize: const Size(0, 36)),
+            ],
+          ),
+          if (profile.bio != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              profile.bio!,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colors.onSurface.withValues(alpha: 0.7),
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          // Action buttons
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: onToggleFollow,
+                  icon: Icon(
+                    isFollowing ? Icons.check : Icons.person_add,
+                    size: 18,
+                  ),
+                  label: Text(
+                    isFollowing
+                        ? 'Following'
+                        : (showFollowBackLabel ? 'Follow Back' : 'Follow'),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: isFollowing
+                        ? colors.primary.withValues(alpha: 0.2)
+                        : null,
+                    foregroundColor: isFollowing
+                        ? colors.primary
+                        : colors.onPrimary,
+                    minimumSize: const Size(0, 36),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: isFollowing ? onChat : null,
+                  icon: const Icon(Icons.chat_bubble_outline, size: 18),
+                  label: const Text('Chat'),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, 36),
+                  ),
+                ),
               ),
             ],
           ),
