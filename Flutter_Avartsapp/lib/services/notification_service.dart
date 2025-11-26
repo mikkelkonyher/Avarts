@@ -142,6 +142,25 @@ class NotificationService {
         }
       }
 
+      // 7. Fetch new followers
+      final follows = await client
+          .from('follows')
+          .select('follower_id, created_at')
+          .eq('following_id', userId);
+
+      for (final follow in follows) {
+        notifications.add(
+          NotificationItem(
+            id: 'follow_${follow['follower_id']}_${follow['created_at']}',
+            type: NotificationType.follow,
+            actorId: follow['follower_id'] as String,
+            actorName: await _getUserName(follow['follower_id'] as String),
+            activityId: '', // Not applicable for follows
+            createdAt: DateTime.parse(follow['created_at'] as String),
+          ),
+        );
+      }
+
       // Sort by date descending
       notifications.sort((a, b) => b.createdAt.compareTo(a.createdAt));
 

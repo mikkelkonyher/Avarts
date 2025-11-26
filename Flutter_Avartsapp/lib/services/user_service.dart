@@ -59,8 +59,9 @@ class UserService {
   /// [userId] - The ID of the user to unfollow
   Future<void> unfollowUser(String userId) async {
     final currentId = currentUserId;
-    if (currentId == null)
+    if (currentId == null) {
       throw Exception('Must be logged in to unfollow users');
+    }
 
     try {
       await client

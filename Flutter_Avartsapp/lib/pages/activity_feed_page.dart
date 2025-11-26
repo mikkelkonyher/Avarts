@@ -270,6 +270,11 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
                               ),
                               onTap: () {
                                 Navigator.pop(context);
+                                // Don't navigate for follow notifications
+                                if (notification.type ==
+                                    NotificationType.follow) {
+                                  return;
+                                }
                                 // Set the activity to expand comments if it's a comment/reply/reaction notification
                                 if (notification.type ==
                                         NotificationType.comment ||
@@ -306,6 +311,8 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
         return Icons.reply;
       case NotificationType.reaction:
         return Icons.add_reaction;
+      case NotificationType.follow:
+        return Icons.person_add;
     }
   }
 
@@ -320,6 +327,8 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
         return ' replied to your comment.';
       case NotificationType.reaction:
         return ' reacted to your comment.';
+      case NotificationType.follow:
+        return ' started following you.';
     }
   }
 

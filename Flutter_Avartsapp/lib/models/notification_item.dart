@@ -1,4 +1,4 @@
-enum NotificationType { kudo, comment, reply, reaction }
+enum NotificationType { kudo, comment, reply, reaction, follow }
 
 class NotificationItem {
   final String id;
