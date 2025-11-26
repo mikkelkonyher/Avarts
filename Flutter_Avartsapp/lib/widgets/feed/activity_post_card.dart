@@ -19,6 +19,7 @@ class ActivityPostCard extends StatefulWidget {
     required this.currentUserId,
     this.isHighlighted = false,
     this.shouldExpandComments = false,
+    this.showFullDescription = false,
   });
 
   final ActivityPost post;
@@ -33,6 +34,7 @@ class ActivityPostCard extends StatefulWidget {
   final String? currentUserId;
   final bool isHighlighted;
   final bool shouldExpandComments;
+  final bool showFullDescription;
 
   @override
   State<ActivityPostCard> createState() => _ActivityPostCardState();
@@ -112,6 +114,11 @@ class _ActivityPostCardState extends State<ActivityPostCard> {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final totalCommentCount = _countAllComments(widget.post.comments);
+
+    String description = widget.post.description;
+    if (!widget.showFullDescription && description.length > 100) {
+      description = '${description.substring(0, 100)}...';
+    }
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -193,7 +200,7 @@ class _ActivityPostCardState extends State<ActivityPostCard> {
             ),
           ),
           const SizedBox(height: 6),
-          Text(widget.post.description, style: theme.textTheme.bodyMedium),
+          Text(description, style: theme.textTheme.bodyMedium),
           const SizedBox(height: 12),
           Row(
             children: [

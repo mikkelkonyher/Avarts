@@ -4,6 +4,7 @@ import 'package:avarts/models/activity_comment.dart';
 import 'package:avarts/models/comment_reaction.dart';
 import 'package:avarts/pages/myprofile_page.dart';
 import 'package:avarts/pages/log_activity_page.dart';
+import 'package:avarts/pages/single_activity_page.dart';
 import 'package:avarts/services/auth_service.dart';
 import 'package:avarts/services/activity_service.dart';
 import 'package:avarts/widgets/feed/activity_post_card.dart';
@@ -275,19 +276,15 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
                                     NotificationType.follow) {
                                   return;
                                 }
-                                // Set the activity to expand comments if it's a comment/reply/reaction notification
-                                if (notification.type ==
-                                        NotificationType.comment ||
-                                    notification.type ==
-                                        NotificationType.reply ||
-                                    notification.type ==
-                                        NotificationType.reaction) {
-                                  setState(() {
-                                    _activityIdToExpandComments =
-                                        notification.activityId;
-                                  });
-                                }
-                                _scrollToActivity(notification.activityId);
+                                // Always open single activity page for better focus
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => SingleActivityPage(
+                                      activityId: notification.activityId,
+                                      loginResult: widget.loginResult,
+                                    ),
+                                  ),
+                                );
                               },
                             );
                           },
@@ -982,24 +979,36 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
 
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 18),
-                    child: ActivityPostCard(
-                      key: ValueKey(post.id),
-                      post: post,
-                      isHighlighted: isHighlighted,
-                      shouldExpandComments: shouldExpandComments,
-                      onGiveKudos: () => _giveKudos(post),
-                      onComment: (content) => _addComment(post, content),
-                      onReplyToComment: (comment, content) =>
-                          _replyToComment(post, comment, content),
-                      onToggleReaction: (post, comment, emoji) =>
-                          _toggleReaction(post, comment, emoji),
-                      onShowKudosUsers: (post) => _showKudosUsers(post),
-                      onShowReactionUsers: (comment, emoji) =>
-                          _showReactionUsers(comment, emoji),
-                      onDeleteComment: (comment) =>
-                          _deleteComment(post, comment),
-                      viewerName: widget.loginResult.displayName,
-                      currentUserId: AuthService().currentUser?.id,
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => SingleActivityPage(
+                              activityId: post.id!,
+                              loginResult: widget.loginResult,
+                            ),
+                          ),
+                        );
+                      },
+                      child: ActivityPostCard(
+                        key: ValueKey(post.id),
+                        post: post,
+                        isHighlighted: isHighlighted,
+                        shouldExpandComments: shouldExpandComments,
+                        onGiveKudos: () => _giveKudos(post),
+                        onComment: (content) => _addComment(post, content),
+                        onReplyToComment: (comment, content) =>
+                            _replyToComment(post, comment, content),
+                        onToggleReaction: (post, comment, emoji) =>
+                            _toggleReaction(post, comment, emoji),
+                        onShowKudosUsers: (post) => _showKudosUsers(post),
+                        onShowReactionUsers: (comment, emoji) =>
+                            _showReactionUsers(comment, emoji),
+                        onDeleteComment: (comment) =>
+                            _deleteComment(post, comment),
+                        viewerName: widget.loginResult.displayName,
+                        currentUserId: AuthService().currentUser?.id,
+                      ),
                     ),
                   );
                 },

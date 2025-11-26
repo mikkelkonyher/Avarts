@@ -813,6 +813,189 @@ class ActivityService {
     }
   }
 
+  /// Fetches a single activity with all details (kudos, comments, reactions)
+  ///
+  /// [activityId] - ID of the activity to fetch
+  ///
+  /// Returns the activity record with all details, or null if not found
+  Future<Map<String, dynamic>?> getActivityWithDetails(
+    String activityId,
+  ) async {
+    final currentUserId = this.currentUserId;
+    if (currentUserId == null) {
+      return null;
+    }
+
+    try {
+      // 1. Fetch the activity
+      final activityResponse = await client
+          .from('activities')
+          .select()
+          .eq('id', activityId)
+          .maybeSingle();
+
+      if (activityResponse == null) {
+        return null;
+      }
+
+      final activity = Map<String, dynamic>.from(activityResponse);
+      final userId = activity['user_id'] as String;
+
+      // 2. Fetch kudos
+      final kudosResponse = await client
+          .from('activity_kudos')
+          .select('user_id')
+          .eq('activity_id', activityId);
+
+      final kudosList = List<Map<String, dynamic>>.from(kudosResponse);
+      final kudosCount = kudosList.length;
+      final hasKudoed = kudosList.any((k) => k['user_id'] == currentUserId);
+
+      // 3. Fetch comments
+      final commentsResponse = await client
+          .from('activity_comments')
+          .select()
+          .eq('activity_id', activityId)
+          .order('created_at', ascending: true);
+
+      final commentsList = List<Map<String, dynamic>>.from(commentsResponse);
+      final commentIds = commentsList.map((c) => c['id'] as String).toSet();
+
+      // 4. Fetch reactions
+      final reactionsResponse = commentIds.isEmpty
+          ? <Map<String, dynamic>>[]
+          : await client
+                .from('comment_reactions')
+                .select()
+                .inFilter('comment_id', commentIds.toList())
+                .order('created_at', ascending: true);
+
+      final reactionsList = List<Map<String, dynamic>>.from(reactionsResponse);
+
+      // Group reactions by comment_id
+      final reactionsByComment = <String, List<Map<String, dynamic>>>{};
+      for (final reaction in reactionsList) {
+        final commentId = reaction['comment_id'] as String;
+        reactionsByComment.putIfAbsent(commentId, () => []).add(reaction);
+      }
+
+      // 5. Fetch profiles for all involved users
+      final userIds = <String>{userId}; // Author
+      for (final comment in commentsList) {
+        userIds.add(comment['user_id'] as String);
+      }
+      for (final reaction in reactionsList) {
+        userIds.add(reaction['user_id'] as String);
+      }
+
+      final profilesResponse = await client
+          .from('profiles')
+          .select('id, user_name')
+          .inFilter('id', userIds.toList());
+
+      final profilesList = List<Map<String, dynamic>>.from(profilesResponse);
+      final profilesByUserId = <String, Map<String, dynamic>>{};
+      for (final profile in profilesList) {
+        profilesByUserId[profile['id'] as String] = profile;
+      }
+
+      // Helper to get display name
+      String getUserDisplayName(String userId) {
+        final currentUser = client.auth.currentUser;
+        if (currentUser != null && currentUser.id == userId) {
+          return _getUserDisplayNameFromMetadata(
+            currentUser.userMetadata,
+            currentUser.email,
+          );
+        }
+
+        final profile = profilesByUserId[userId];
+        if (profile != null) {
+          final userName = profile['user_name'] as String?;
+          if (userName != null && userName.isNotEmpty) {
+            return userName;
+          }
+        }
+
+        return 'User';
+      }
+
+      // 6. Process comments and build tree
+      final List<Map<String, dynamic>> allComments = [];
+      for (final comment in commentsList) {
+        final commentId = comment['id'] as String;
+        final commentUserId = comment['user_id'] as String;
+        final commentContent = comment['content'] as String;
+        final commentCreatedAt = comment['created_at'] as String;
+        final parentCommentId = comment['parent_comment_id'] as String?;
+        final authorName = getUserDisplayName(commentUserId);
+
+        final commentReactions = reactionsByComment[commentId] ?? [];
+        final reactionsData = commentReactions.map((reaction) {
+          return {
+            'id': reaction['id'] as String,
+            'user_id': reaction['user_id'] as String,
+            'emoji': reaction['emoji'] as String,
+            'created_at': reaction['created_at'] as String,
+          };
+        }).toList();
+
+        allComments.add({
+          'id': commentId,
+          'user_id': commentUserId,
+          'author': authorName,
+          'content': commentContent,
+          'created_at': commentCreatedAt,
+          'parent_comment_id': parentCommentId,
+          'reactions': reactionsData,
+        });
+      }
+
+      final List<Map<String, dynamic>> topLevelComments = [];
+      final Map<String, List<Map<String, dynamic>>> repliesByParent = {};
+
+      for (final comment in allComments) {
+        final parentId = comment['parent_comment_id'] as String?;
+        if (parentId == null) {
+          topLevelComments.add(comment);
+        } else {
+          repliesByParent.putIfAbsent(parentId, () => []).add(comment);
+        }
+      }
+
+      List<Map<String, dynamic>> buildCommentTree(
+        Map<String, dynamic> comment,
+      ) {
+        final commentId = comment['id'] as String;
+        final directReplies = repliesByParent[commentId] ?? [];
+        return directReplies.map((reply) {
+          return {...reply, 'replies': buildCommentTree(reply)};
+        }).toList();
+      }
+
+      final List<Map<String, dynamic>> commentData = [];
+      for (final topLevelComment in topLevelComments) {
+        commentData.add({
+          ...topLevelComment,
+          'replies': buildCommentTree(topLevelComment),
+        });
+      }
+
+      // 7. Final assembly
+      return {
+        ...activity,
+        'author_name': getUserDisplayName(userId),
+        'kudos_count': kudosCount,
+        'has_kudoed': hasKudoed,
+        'comments': commentData,
+      };
+    } on PostgrestException catch (e) {
+      throw Exception('Failed to fetch activity details: ${e.message}');
+    } on Exception catch (e) {
+      throw Exception('Failed to fetch activity details: ${e.toString()}');
+    }
+  }
+
   /// Adds or removes a reaction to a comment
   /// Users can only have ONE reaction per comment - changing emoji removes the old one
   ///

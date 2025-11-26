@@ -3,7 +3,7 @@ import 'package:avarts/pages/earned_badges_page.dart';
 import 'package:avarts/pages/friends_page.dart';
 import 'package:avarts/pages/login_page.dart';
 import 'package:avarts/pages/log_activity_page.dart';
-import 'package:avarts/pages/activity_feed_page.dart';
+import 'package:avarts/pages/single_activity_page.dart';
 import 'package:avarts/services/auth_service.dart';
 import 'package:avarts/services/activity_service.dart';
 import 'package:avarts/models/activity_post.dart';
@@ -915,14 +915,19 @@ class _ActivityCard extends StatelessWidget {
     final activityColor = _getActivityColor(activity.activity);
     final activityIcon = _getActivityIcon(activity.activity);
 
+    String description = activity.description;
+    if (description.length > 100) {
+      description = '${description.substring(0, 100)}...';
+    }
+
     return InkWell(
       onTap: activity.id != null
           ? () {
               Navigator.of(context).push(
                 MaterialPageRoute(
-                  builder: (_) => ActivityFeedPage(
+                  builder: (_) => SingleActivityPage(
+                    activityId: activity.id!,
                     loginResult: loginResult,
-                    activityIdToHighlight: activity.id,
                   ),
                 ),
               );
@@ -939,106 +944,98 @@ class _ActivityCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Header: Icon + Date + Menu
             Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 CircleAvatar(
-                  radius: 24,
-                  backgroundColor: activityColor.withValues(alpha: 0.18),
-                  child: Icon(activityIcon, color: activityColor, size: 24),
+                  backgroundColor: activityColor.withValues(alpha: 0.15),
+                  child: Icon(activityIcon, color: activityColor, size: 20),
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              activity.title,
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                          PopupMenuButton(
-                            icon: const Icon(Icons.more_vert),
-                            itemBuilder: (context) => [
-                              PopupMenuItem(
-                                child: const Row(
-                                  children: [
-                                    Icon(Icons.edit, size: 20),
-                                    SizedBox(width: 8),
-                                    Text('Edit'),
-                                  ],
-                                ),
-                                onTap: () {
-                                  Future.delayed(
-                                    const Duration(milliseconds: 100),
-                                    onEdit,
-                                  );
-                                },
-                              ),
-                              PopupMenuItem(
-                                child: const Row(
-                                  children: [
-                                    Icon(
-                                      Icons.delete,
-                                      size: 20,
-                                      color: Colors.red,
-                                    ),
-                                    SizedBox(width: 8),
-                                    Text(
-                                      'Delete',
-                                      style: TextStyle(color: Colors.red),
-                                    ),
-                                  ],
-                                ),
-                                onTap: () {
-                                  Future.delayed(
-                                    const Duration(milliseconds: 100),
-                                    onDelete,
-                                  );
-                                },
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
                       Text(
-                        activity.activity,
+                        'You', // Since it's my profile
+                        style: theme.textTheme.titleMedium,
+                      ),
+                      Text(
+                        _formatDate(activity.createdAt),
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: activityColor,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        activity.description,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: colors.onSurface.withValues(alpha: 0.8),
+                          color: colors.onSurface.withValues(alpha: 0.6),
                         ),
                       ),
                     ],
                   ),
                 ),
+                PopupMenuButton(
+                  icon: const Icon(Icons.more_vert),
+                  itemBuilder: (context) => [
+                    PopupMenuItem(
+                      child: const Row(
+                        children: [
+                          Icon(Icons.edit, size: 20),
+                          SizedBox(width: 8),
+                          Text('Edit'),
+                        ],
+                      ),
+                      onTap: () {
+                        Future.delayed(
+                          const Duration(milliseconds: 100),
+                          onEdit,
+                        );
+                      },
+                    ),
+                    PopupMenuItem(
+                      child: const Row(
+                        children: [
+                          Icon(Icons.delete, size: 20, color: Colors.red),
+                          SizedBox(width: 8),
+                          Text('Delete', style: TextStyle(color: Colors.red)),
+                        ],
+                      ),
+                      onTap: () {
+                        Future.delayed(
+                          const Duration(milliseconds: 100),
+                          onDelete,
+                        );
+                      },
+                    ),
+                  ],
+                ),
               ],
             ),
+            const SizedBox(height: 14),
+            // Activity Chip
+            Center(
+              child: Chip(
+                label: Text(activity.activity),
+                backgroundColor: activityColor.withValues(alpha: 0.12),
+                labelStyle: theme.textTheme.labelSmall?.copyWith(
+                  color: activityColor,
+                  fontWeight: FontWeight.w700,
+                ),
+                side: BorderSide.none,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+              ),
+            ),
+            // Image
             if (activity.mediaUrl != null && activity.mediaUrl!.isNotEmpty) ...[
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
               ClipRRect(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(20),
                 child: Image.network(
                   activity.mediaUrl!,
-                  height: 200,
+                  height: 180,
                   width: double.infinity,
                   fit: BoxFit.cover,
                   loadingBuilder: (context, child, loadingProgress) {
                     if (loadingProgress == null) return child;
                     return Container(
-                      height: 200,
+                      height: 180,
                       color: colors.surfaceContainerHighest,
                       child: Center(
                         child: CircularProgressIndicator(
@@ -1052,20 +1049,10 @@ class _ActivityCard extends StatelessWidget {
                   },
                   errorBuilder: (context, error, stackTrace) {
                     return Container(
-                      height: 200,
+                      height: 180,
                       color: colors.surfaceContainerHighest,
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.broken_image, size: 48),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Failed to load image',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: colors.onSurface.withValues(alpha: 0.6),
-                            ),
-                          ),
-                        ],
+                      child: const Center(
+                        child: Icon(Icons.broken_image, size: 48),
                       ),
                     );
                   },
@@ -1073,31 +1060,31 @@ class _ActivityCard extends StatelessWidget {
               ),
             ],
             const SizedBox(height: 16),
+            // Title
+            Text(
+              activity.title,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 6),
+            // Description
+            Text(
+              description,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: colors.onSurface.withValues(alpha: 0.8),
+              ),
+            ),
+            const SizedBox(height: 12),
+            // Footer: Duration
             Row(
               children: [
-                Icon(
-                  Icons.access_time,
-                  size: 16,
-                  color: colors.onSurface.withValues(alpha: 0.6),
-                ),
+                Icon(Icons.schedule, size: 18, color: colors.secondary),
                 const SizedBox(width: 6),
                 Text(
                   _formatDuration(activity.duration),
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: colors.onSurface.withValues(alpha: 0.6),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Icon(
-                  Icons.calendar_today,
-                  size: 16,
-                  color: colors.onSurface.withValues(alpha: 0.6),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  _formatDate(activity.createdAt),
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colors.onSurface.withValues(alpha: 0.6),
+                    color: colors.onSurface.withValues(alpha: 0.7),
                   ),
                 ),
               ],
