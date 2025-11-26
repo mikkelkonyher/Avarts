@@ -231,17 +231,36 @@ class ActivityService {
   /// [offset] - Number of activities to skip (for pagination)
   ///
   /// Returns a list of activity records with kudos count, comments, and user info
+  /// Only returns activities from the current user and users they follow
   Future<List<Map<String, dynamic>>> getFeedActivities({
     int limit = 50,
     int offset = 0,
   }) async {
     final currentUserId = this.currentUserId;
+    if (currentUserId == null) {
+      return [];
+    }
 
     try {
-      // Fetch activities
+      // Get list of users the current user follows
+      final followsResponse = await client
+          .from('follows')
+          .select('following_id')
+          .eq('follower_id', currentUserId);
+
+      final followsList = List<Map<String, dynamic>>.from(followsResponse);
+      final followedUserIds = followsList
+          .map((f) => f['following_id'] as String)
+          .toList();
+
+      // Add current user to the list to see their own activities
+      final userIdsToShow = [...followedUserIds, currentUserId];
+
+      // Fetch activities only from these users
       final activitiesResponse = await client
           .from('activities')
           .select()
+          .inFilter('user_id', userIdsToShow)
           .order('created_at', ascending: false)
           .range(offset, offset + limit - 1);
 
