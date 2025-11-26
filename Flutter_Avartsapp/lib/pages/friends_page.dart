@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:avarts/models/user_profile.dart';
 import 'package:avarts/pages/chat_page.dart';
+import 'package:avarts/services/user_service.dart';
 
 class FriendsPage extends StatefulWidget {
   const FriendsPage({super.key, required this.currentUser});
@@ -12,40 +14,23 @@ class FriendsPage extends StatefulWidget {
 
 class _FriendsPageState extends State<FriendsPage> {
   final TextEditingController _searchController = TextEditingController();
-  final Set<String> _friendHandles = {'lazy_legend'};
+  final UserService _userService = UserService();
 
-  final List<_UserProfile> _allUsers = const [
-    _UserProfile(
-      displayName: 'Sleepy Sam',
-      handle: 'lazy_legend',
-      mood: 'Power-napping since 2001',
-      avatarColor: Color(0xFF2F81F7),
-    ),
-    _UserProfile(
-      displayName: 'CatVideoCarl',
-      handle: 'doom_master',
-      mood: '98% cat reels today',
-      avatarColor: Color(0xFFD29922),
-    ),
-    _UserProfile(
-      displayName: 'Netflix Nia',
-      handle: 'series_sprinter',
-      mood: 'Finished 3 series before breakfast',
-      avatarColor: Color(0xFF8957E5),
-    ),
-    _UserProfile(
-      displayName: 'Snacky Jack',
-      handle: 'chip_connoisseur',
-      mood: 'Washed kale with soda',
-      avatarColor: Color(0xFFED8B00),
-    ),
-    _UserProfile(
-      displayName: 'Procrastination Pat',
-      handle: 'later_gator',
-      mood: 'Meetings? Never heard of them',
-      avatarColor: Color(0xFF3FB950),
-    ),
-  ];
+  List<UserProfile> _searchResults = [];
+  Set<String> _followedUserIds = {};
+  List<UserProfile> _followedUsers = [];
+  List<UserProfile> _followers = [];
+  bool _isLoading = false;
+  bool _isSearching = false;
+  bool _isLoadingFollowed = false;
+  bool _isLoadingFollowers = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFollowedUsers();
+    _loadFollowers();
+  }
 
   @override
   void dispose() {
@@ -53,33 +38,132 @@ class _FriendsPageState extends State<FriendsPage> {
     super.dispose();
   }
 
-  List<_UserProfile> get _filteredUsers {
-    final query = _searchController.text.trim().toLowerCase();
-    if (query.isEmpty) return _allUsers;
-    return _allUsers
-        .where(
-          (user) =>
-              user.displayName.toLowerCase().contains(query) ||
-              user.handle.toLowerCase().contains(query),
-        )
-        .toList();
+  Future<void> _loadFollowedUsers() async {
+    setState(() {
+      _isLoadingFollowed = true;
+    });
+
+    try {
+      final followedUsers = await _userService.getFollowedUsers();
+      if (mounted) {
+        setState(() {
+          _followedUsers = followedUsers;
+          _followedUserIds = Set.from(followedUsers.map((u) => u.id));
+          _isLoadingFollowed = false;
+        });
+      }
+    } catch (e) {
+      // ignore: avoid_print
+      print('Error loading followed users: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingFollowed = false;
+        });
+      }
+    }
   }
 
-  void _toggleFriend(_UserProfile profile) {
+  Future<void> _loadFollowers() async {
     setState(() {
-      if (_friendHandles.contains(profile.handle)) {
-        _friendHandles.remove(profile.handle);
+      _isLoadingFollowers = true;
+    });
+
+    try {
+      final followers = await _userService.getFollowers();
+      if (mounted) {
+        setState(() {
+          _followers = followers;
+          _isLoadingFollowers = false;
+        });
+      }
+    } catch (e) {
+      // ignore: avoid_print
+      print('Error loading followers: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingFollowers = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _performSearch(String query) async {
+    if (query.isEmpty) {
+      setState(() {
+        _searchResults = [];
+        _isSearching = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _isSearching = true;
+    });
+
+    try {
+      final results = await _userService.searchUsers(query);
+      if (mounted) {
+        setState(() {
+          _searchResults = results;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _searchResults = [];
+        });
+      }
+    }
+  }
+
+  Future<void> _toggleFollow(UserProfile user) async {
+    final isFollowing = _followedUserIds.contains(user.id);
+
+    // Optimistic update
+    setState(() {
+      if (isFollowing) {
+        _followedUserIds.remove(user.id);
+        _followedUsers.removeWhere((u) => u.id == user.id);
       } else {
-        _friendHandles.add(profile.handle);
+        _followedUserIds.add(user.id);
+        _followedUsers.add(user);
       }
     });
+
+    try {
+      if (isFollowing) {
+        await _userService.unfollowUser(user.id);
+      } else {
+        await _userService.followUser(user.id);
+      }
+      // Reload to ensure consistency
+      await _loadFollowedUsers();
+      await _loadFollowers();
+    } catch (e) {
+      // Revert on failure
+      if (mounted) {
+        setState(() {
+          if (isFollowing) {
+            _followedUserIds.add(user.id);
+            _followedUsers.add(user);
+          } else {
+            _followedUserIds.remove(user.id);
+            _followedUsers.removeWhere((u) => u.id == user.id);
+          }
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to update follow status: $e')),
+        );
+      }
+    }
   }
 
-  void _openChat(_UserProfile profile) {
+  void _openChat(UserProfile user) {
     Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => ChatPage(friendName: profile.displayName),
-      ),
+      MaterialPageRoute(builder: (_) => ChatPage(friendName: user.displayName)),
     );
   }
 
@@ -105,75 +189,120 @@ class _FriendsPageState extends State<FriendsPage> {
                   borderRadius: BorderRadius.circular(24),
                   borderSide: BorderSide.none,
                 ),
+                suffixIcon: _isLoading
+                    ? const Padding(
+                        padding: EdgeInsets.all(12.0),
+                        child: SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      )
+                    : null,
               ),
-              onChanged: (_) => setState(() {}),
+              onChanged: (value) {
+                // Debounce could be added here
+                _performSearch(value);
+              },
             ),
           ),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
-              children: [
-                _SectionHeading(
-                  title: 'Suggested users',
-                  subtitle: 'Tap add to queue them up before the API exists',
-                ),
-                const SizedBox(height: 12),
-                ..._filteredUsers.map((profile) {
-                  final isFriend = _friendHandles.contains(profile.handle);
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 14),
-                    child: _FriendTile(
-                      profile: profile,
-                      isFriend: isFriend,
-                      onChat: () => _openChat(profile),
-                      onToggleFriend: () => _toggleFriend(profile),
-                    ),
-                  );
-                }),
-                const SizedBox(height: 24),
-                _SectionHeading(
-                  title: 'Your chill crew',
-                  subtitle: _friendHandles.isEmpty
-                      ? 'Add someone above to begin chatting'
-                      : 'Tap chat to start a convo',
-                ),
-                const SizedBox(height: 12),
-                if (_friendHandles.isEmpty)
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: colors.surfaceContainerHighest.withValues(
-                        alpha: 0.6,
-                      ),
-                      borderRadius: BorderRadius.circular(24),
-                    ),
-                    child: Text(
-                      'No friends yet. We won’t tell anyone.',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: colors.onSurface.withValues(alpha: 0.7),
-                      ),
-                    ),
-                  )
-                else
-                  ..._allUsers
-                      .where((user) => _friendHandles.contains(user.handle))
-                      .map((profile) {
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: _FriendTile(
-                            profile: profile,
-                            isFriend: true,
-                            dense: true,
-                            onChat: () => _openChat(profile),
-                            onToggleFriend: () => _toggleFriend(profile),
-                          ),
-                        );
-                      }),
-              ],
-            ),
-          ),
+          Expanded(child: _buildContent(theme, colors)),
         ],
       ),
+    );
+  }
+
+  Widget _buildContent(ThemeData theme, ColorScheme colors) {
+    if (_isSearching) {
+      if (_searchResults.isEmpty && !_isLoading) {
+        return Center(
+          child: Text(
+            'No users found',
+            style: theme.textTheme.bodyLarge?.copyWith(
+              color: colors.onSurface.withValues(alpha: 0.6),
+            ),
+          ),
+        );
+      }
+
+      return ListView.builder(
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
+        itemCount: _searchResults.length,
+        itemBuilder: (context, index) {
+          final user = _searchResults[index];
+          // Don't show current user in search results
+          if (user.id == widget.currentUser) return const SizedBox.shrink();
+
+          final isFollowing = _followedUserIds.contains(user.id);
+
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 14),
+            child: _FriendTile(
+              profile: user,
+              isFollowing: isFollowing,
+              onChat: () => _openChat(user),
+              onToggleFollow: () => _toggleFollow(user),
+            ),
+          );
+        },
+      );
+    }
+
+    // Default view (could show suggestions or followed users)
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
+      children: [
+        _SectionHeading(
+          title: 'Search for friends',
+          subtitle: 'Find other lazy athletes to follow',
+        ),
+        const SizedBox(height: 24),
+        if (_followedUsers.isNotEmpty) ...[
+          _SectionHeading(
+            title: 'Your chill crew',
+            subtitle: 'People you follow',
+          ),
+          const SizedBox(height: 12),
+          if (_isLoadingFollowed)
+            const Center(child: CircularProgressIndicator())
+          else
+            ..._followedUsers.map((user) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _FriendTile(
+                  profile: user,
+                  isFollowing: true,
+                  onChat: () => _openChat(user),
+                  onToggleFollow: () => _toggleFollow(user),
+                ),
+              );
+            }),
+        ],
+        const SizedBox(height: 24),
+        if (_followers.isNotEmpty) ...[
+          _SectionHeading(
+            title: 'Your followers',
+            subtitle: 'People who follow you',
+          ),
+          const SizedBox(height: 12),
+          if (_isLoadingFollowers)
+            const Center(child: CircularProgressIndicator())
+          else
+            ..._followers.map((user) {
+              final isFollowingBack = _followedUserIds.contains(user.id);
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _FriendTile(
+                  profile: user,
+                  isFollowing: isFollowingBack,
+                  onChat: () => _openChat(user),
+                  onToggleFollow: () => _toggleFollow(user),
+                  showFollowBackLabel: !isFollowingBack,
+                ),
+              );
+            }),
+        ],
+      ],
     );
   }
 }
@@ -181,22 +310,26 @@ class _FriendsPageState extends State<FriendsPage> {
 class _FriendTile extends StatelessWidget {
   const _FriendTile({
     required this.profile,
-    required this.isFriend,
-    required this.onToggleFriend,
+    required this.isFollowing,
+    required this.onToggleFollow,
     required this.onChat,
-    this.dense = false,
+    this.showFollowBackLabel = false,
   });
 
-  final _UserProfile profile;
-  final bool isFriend;
-  final VoidCallback onToggleFriend;
+  final UserProfile profile;
+  final bool isFollowing;
+  final VoidCallback onToggleFollow;
   final VoidCallback onChat;
-  final bool dense;
+  final bool showFollowBackLabel;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
+
+    // Generate a consistent color based on name
+    final avatarColor = Colors
+        .primaries[profile.displayName.hashCode % Colors.primaries.length];
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -208,15 +341,22 @@ class _FriendTile extends StatelessWidget {
       child: Row(
         children: [
           CircleAvatar(
-            radius: dense ? 22 : 28,
-            backgroundColor: profile.avatarColor.withValues(alpha: 0.18),
-            child: Text(
-              profile.displayName.characters.first,
-              style: theme.textTheme.titleMedium?.copyWith(
-                color: profile.avatarColor,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            radius: 28,
+            backgroundColor: avatarColor.withValues(alpha: 0.18),
+            backgroundImage: profile.avatarUrl != null
+                ? NetworkImage(profile.avatarUrl!)
+                : null,
+            child: profile.avatarUrl == null
+                ? Text(
+                    profile.displayName.isNotEmpty
+                        ? profile.displayName.characters.first.toUpperCase()
+                        : '?',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: avatarColor,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  )
+                : null,
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -226,18 +366,22 @@ class _FriendTile extends StatelessWidget {
                 Text(profile.displayName, style: theme.textTheme.titleMedium),
                 const SizedBox(height: 4),
                 Text(
-                  '@${profile.handle}',
+                  '@${profile.userName}',
                   style: theme.textTheme.labelSmall?.copyWith(
                     color: colors.onSurface.withValues(alpha: 0.65),
                   ),
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  profile.mood,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colors.onSurface.withValues(alpha: 0.7),
+                if (profile.bio != null) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    profile.bio!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colors.onSurface.withValues(alpha: 0.7),
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
           ),
@@ -245,20 +389,26 @@ class _FriendTile extends StatelessWidget {
           Column(
             children: [
               ElevatedButton.icon(
-                onPressed: onToggleFriend,
-                icon: Icon(isFriend ? Icons.check : Icons.person_add),
-                label: Text(isFriend ? 'Added' : 'Add'),
+                onPressed: onToggleFollow,
+                icon: Icon(isFollowing ? Icons.check : Icons.person_add),
+                label: Text(
+                  isFollowing
+                      ? 'Following'
+                      : (showFollowBackLabel ? 'Follow Back' : 'Follow'),
+                ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: isFriend
+                  backgroundColor: isFollowing
                       ? colors.primary.withValues(alpha: 0.2)
                       : null,
-                  foregroundColor: isFriend ? colors.primary : colors.onPrimary,
+                  foregroundColor: isFollowing
+                      ? colors.primary
+                      : colors.onPrimary,
                   minimumSize: const Size(0, 36),
                 ),
               ),
               const SizedBox(height: 8),
               OutlinedButton.icon(
-                onPressed: isFriend ? onChat : null,
+                onPressed: isFollowing ? onChat : null,
                 icon: const Icon(Icons.chat_bubble_outline, size: 18),
                 label: const Text('Chat'),
                 style: OutlinedButton.styleFrom(minimumSize: const Size(0, 36)),
@@ -301,18 +451,4 @@ class _SectionHeading extends StatelessWidget {
       ],
     );
   }
-}
-
-class _UserProfile {
-  const _UserProfile({
-    required this.displayName,
-    required this.handle,
-    required this.mood,
-    required this.avatarColor,
-  });
-
-  final String displayName;
-  final String handle;
-  final String mood;
-  final Color avatarColor;
 }
