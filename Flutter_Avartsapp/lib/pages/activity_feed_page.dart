@@ -871,6 +871,11 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
         title: const Text('Feed'),
         actions: [
           IconButton(
+            tooltip: 'Log activity',
+            icon: const Icon(Icons.add_box_outlined),
+            onPressed: _openLogActivity,
+          ),
+          IconButton(
             tooltip: 'Notifications',
             icon: Badge(
               isLabelVisible: _unreadCount > 0,
@@ -886,11 +891,7 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _openLogActivity,
-        icon: const Icon(Icons.post_add_rounded),
-        label: const Text('Log activity'),
-      ),
+      // floatingActionButton removed
       body: RefreshIndicator(
         onRefresh: _loadFeed,
         child: _isLoading
