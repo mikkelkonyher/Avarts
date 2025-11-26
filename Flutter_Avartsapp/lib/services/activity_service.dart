@@ -253,10 +253,19 @@ class ActivityService {
           .map((f) => f['following_id'] as String)
           .toList();
 
-      // Add current user to the list to see their own activities
-      final userIdsToShow = [...followedUserIds, currentUserId];
+      // Build list of user IDs to show activities from
+      // Always include current user, plus any users they follow
+      final userIdsToShow = <String>{
+        currentUserId,
+        ...followedUserIds,
+      }.toList();
 
-      // Fetch activities only from these users
+      // If the list is empty (shouldn't happen, but defensive check)
+      if (userIdsToShow.isEmpty) {
+        return [];
+      }
+
+      // Fetch activities from these users
       final activitiesResponse = await client
           .from('activities')
           .select()
