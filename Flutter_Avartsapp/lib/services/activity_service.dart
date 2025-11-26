@@ -408,9 +408,9 @@ class ActivityService {
         // Get kudos for this activity
         final activityKudos = kudosByActivity[activityId] ?? [];
         final kudosCount = activityKudos.length;
-        final hasKudoed =
-            currentUserId != null &&
-            activityKudos.any((k) => k['user_id'] == currentUserId);
+        final hasKudoed = activityKudos.any(
+          (k) => k['user_id'] == currentUserId,
+        );
 
         // Get comments for this activity
         final activityComments = commentsByActivity[activityId] ?? [];
