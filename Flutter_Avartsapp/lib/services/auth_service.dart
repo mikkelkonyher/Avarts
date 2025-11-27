@@ -15,10 +15,7 @@ class AuthException implements Exception {
 
 /// Result object returned from a successful login attempt
 class LoginResult {
-  LoginResult({
-    required this.user,
-    this.token,
-  });
+  LoginResult({required this.user, this.token});
 
   /// Supabase user object
   final User user;
@@ -79,18 +76,18 @@ class AuthService {
   /// Must be called before using any auth methods
   static Future<void> initialize() async {
     final supabaseUrl = dotenv.env['SUPABASE_URL'];
-    final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'];
+    final supabasePublishableKey = dotenv.env['SUPABASE_PUBLISHABLE_KEY'];
 
     if (supabaseUrl == null || supabaseUrl.isEmpty) {
       throw AuthException('SUPABASE_URL missing from .env');
     }
-    if (supabaseAnonKey == null || supabaseAnonKey.isEmpty) {
-      throw AuthException('SUPABASE_ANON_KEY missing from .env');
+    if (supabasePublishableKey == null || supabasePublishableKey.isEmpty) {
+      throw AuthException('SUPABASE_PUBLISHABLE_KEY missing from .env');
     }
 
     await Supabase.initialize(
       url: supabaseUrl,
-      anonKey: supabaseAnonKey,
+      anonKey: supabasePublishableKey,
     );
   }
 
@@ -113,13 +110,15 @@ class AuthService {
       // The trigger looks for 'display_name' in raw_user_meta_data to set user_name in profiles
       final metadata = <String, dynamic>{};
       if (userName != null && userName.isNotEmpty) {
-        metadata['display_name'] = userName; // Trigger uses this to set user_name in profiles
+        metadata['display_name'] =
+            userName; // Trigger uses this to set user_name in profiles
         metadata['userName'] = userName; // Keep for backward compatibility
         metadata['full_name'] = userName; // Keep for backward compatibility
       }
 
       // Get email verification redirect URL from environment
-      final emailRedirectUrl = dotenv.env['SUPABASE_EMAIL_REDIRECT_URL'] ?? 
+      final emailRedirectUrl =
+          dotenv.env['SUPABASE_EMAIL_REDIRECT_URL'] ??
           'avarts://email-verified';
 
       final response = await client.auth.signUp(
@@ -188,20 +187,19 @@ class AuthService {
     try {
       // Get redirect URL from environment or use a default
       // This URL must be added to Supabase dashboard > Authentication > Redirect URLs
-      final redirectUrl = dotenv.env['SUPABASE_REDIRECT_URL'] ?? 
-          'avarts://reset-password';
-      
+      final redirectUrl =
+          dotenv.env['SUPABASE_REDIRECT_URL'] ?? 'avarts://reset-password';
+
       // Ensure the redirect URL is properly formatted
       // For deep links like avarts://reset-password, the host will be 'reset-password'
       final uri = Uri.parse(redirectUrl);
       if (uri.scheme.isEmpty) {
-        throw AuthException('Invalid redirect URL format: $redirectUrl (missing scheme)');
+        throw AuthException(
+          'Invalid redirect URL format: $redirectUrl (missing scheme)',
+        );
       }
-      
-      await client.auth.resetPasswordForEmail(
-        email,
-        redirectTo: redirectUrl,
-      );
+
+      await client.auth.resetPasswordForEmail(email, redirectTo: redirectUrl);
     } on AuthException {
       rethrow;
     } on Exception catch (e) {
@@ -233,10 +231,7 @@ class AuthService {
         if (session != null) {
           // Ensure profile is set up correctly
           await _ensureProfileSetup(session.user);
-          return LoginResult(
-            user: session.user,
-            token: session.accessToken,
-          );
+          return LoginResult(user: session.user, token: session.accessToken);
         }
         await Future.delayed(pollInterval);
       }
@@ -273,10 +268,7 @@ class AuthService {
         if (session != null) {
           // Ensure profile is set up correctly
           await _ensureProfileSetup(session.user);
-          return LoginResult(
-            user: session.user,
-            token: session.accessToken,
-          );
+          return LoginResult(user: session.user, token: session.accessToken);
         }
         await Future.delayed(pollInterval);
       }
@@ -314,10 +306,14 @@ class AuthService {
         // This establishes the session so the user can reset their password
         await client.auth.setSession(refreshToken);
       } else {
-        throw AuthException('Missing access_token or refresh_token in password reset link');
+        throw AuthException(
+          'Missing access_token or refresh_token in password reset link',
+        );
       }
     } on Exception catch (e) {
-      throw AuthException('Failed to handle password reset link: ${e.toString()}');
+      throw AuthException(
+        'Failed to handle password reset link: ${e.toString()}',
+      );
     }
   }
 
@@ -340,7 +336,9 @@ class AuthService {
         }
       }
     } on Exception catch (e) {
-      throw AuthException('Failed to handle email verification link: ${e.toString()}');
+      throw AuthException(
+        'Failed to handle email verification link: ${e.toString()}',
+      );
     }
   }
 
@@ -350,8 +348,9 @@ class AuthService {
     try {
       final metadata = user.userMetadata ?? {};
       // Try display_name first (used by trigger), then userName for backward compatibility
-      final userName = metadata['display_name'] as String? ?? 
-                       metadata['userName'] as String?;
+      final userName =
+          metadata['display_name'] as String? ??
+          metadata['userName'] as String?;
 
       // If we have a userName in metadata, ensure profile uses it
       if (userName != null && userName.isNotEmpty) {
@@ -363,8 +362,7 @@ class AuthService {
             .maybeSingle();
 
         // Update profile if user_name doesn't match
-        if (profile == null || 
-            (profile['user_name'] as String?) != userName) {
+        if (profile == null || (profile['user_name'] as String?) != userName) {
           await client.from('profiles').upsert({
             'id': user.id,
             'user_name': userName,
@@ -379,4 +377,3 @@ class AuthService {
     }
   }
 }
-

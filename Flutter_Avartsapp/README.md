@@ -31,7 +31,7 @@ A Flutter app for tracking and sharing your chill activities.
 
    ```
    SUPABASE_URL=your_supabase_project_url
-   SUPABASE_ANON_KEY=your_supabase_anon_key
+   SUPABASE_PUBLISHABLE_KEY=your_supabase_anon_key
    SUPABASE_REDIRECT_URL=avarts://reset-password
    SUPABASE_EMAIL_REDIRECT_URL=avarts://email-verified
    ```
@@ -95,7 +95,7 @@ lib/
 The app requires the following environment variables in `.env`:
 
 - `SUPABASE_URL`: Your Supabase project URL
-- `SUPABASE_ANON_KEY`: Your Supabase anonymous/public key
+- `SUPABASE_PUBLISHABLE_KEY`: Your Supabase anonymous/public key
 - `SUPABASE_REDIRECT_URL` (optional): Custom redirect URL for password reset. Default: `avarts://reset-password`
 - `SUPABASE_EMAIL_REDIRECT_URL` (optional): Custom redirect URL for email verification. Default: `avarts://email-verified`
 
