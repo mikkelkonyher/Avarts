@@ -31,7 +31,7 @@ A Flutter app for tracking and sharing your chill activities.
 
    ```
    SUPABASE_URL=your_supabase_project_url
-   SUPABASE_PUBLISHABLE_KEY=your_supabase_anon_key
+   SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key
    SUPABASE_REDIRECT_URL=avarts://reset-password
    SUPABASE_EMAIL_REDIRECT_URL=avarts://email-verified
    ```
@@ -39,7 +39,7 @@ A Flutter app for tracking and sharing your chill activities.
    **Important:**
 
    - The `.env` file is already in `.gitignore` and should never be committed to version control
-   - Replace `your_supabase_project_url` and `your_supabase_anon_key` with your actual Supabase credentials
+   - Replace `your_supabase_project_url` and `your_supabase_publishable_key` with your actual Supabase credentials
    - You can find these values in your Supabase project settings under API
 
 4. **Configure Supabase URL Settings**
