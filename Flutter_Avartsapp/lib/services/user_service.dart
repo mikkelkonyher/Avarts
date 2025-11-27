@@ -36,6 +36,27 @@ class UserService {
     }
   }
 
+  /// Gets the profile of the current user
+  Future<UserProfile?> getCurrentUserProfile() async {
+    final userId = currentUserId;
+    if (userId == null) return null;
+
+    try {
+      final response = await client
+          .from('profiles')
+          .select()
+          .eq('id', userId)
+          .maybeSingle();
+
+      if (response == null) return null;
+      return UserProfile.fromJson(response);
+    } catch (e) {
+      // ignore: avoid_print
+      print('Error fetching current user profile: $e');
+      return null;
+    }
+  }
+
   /// Follows a user
   ///
   /// [userId] - The ID of the user to follow

@@ -162,9 +162,9 @@ class _FriendsPageState extends State<FriendsPage> {
   }
 
   void _openChat(UserProfile user) {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => ChatPage(friendName: user.displayName)),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => ChatPage(targetUser: user)));
   }
 
   @override
