@@ -35,15 +35,21 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
   List<ActivityPost> _posts = [];
   List<NotificationItem> _notifications = [];
   bool _isLoading = true;
+  bool _isLoadingMore = false;
   String? _errorMessage;
   String? _activityIdToExpandComments;
+
+  // Pagination state
+  int _currentOffset = 0;
+  final int _pageSize = 20;
+  bool _hasMoreActivities = true;
 
   @override
   void initState() {
     super.initState();
-    super.initState();
     _loadFeed();
     _loadNotifications();
+    _scrollController.addListener(_onScroll);
   }
 
   @override
@@ -52,14 +58,128 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
     super.dispose();
   }
 
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      // User is near the bottom, load more
+      if (!_isLoadingMore && _hasMoreActivities) {
+        _loadMoreActivities();
+      }
+    }
+  }
+
+  Future<void> _loadMoreActivities() async {
+    if (_isLoadingMore || !_hasMoreActivities) return;
+
+    setState(() {
+      _isLoadingMore = true;
+    });
+
+    try {
+      final activities = await _activityService.getFeedActivities(
+        limit: _pageSize,
+        offset: _currentOffset,
+      );
+
+      setState(() {
+        final newPosts = activities.map((activity) {
+          final commentsData = activity['comments'];
+          final List<ActivityComment> comments;
+
+          if (commentsData is List) {
+            // Helper function to recursively parse comments and their replies
+            ActivityComment parseComment(Map<String, dynamic> commentMap) {
+              final repliesData = commentMap['replies'] as List? ?? [];
+              final replies = repliesData
+                  .whereType<Map<String, dynamic>>()
+                  .map<ActivityComment>((reply) => parseComment(reply))
+                  .toList();
+
+              // Parse reactions
+              final reactionsData = commentMap['reactions'] as List? ?? [];
+              final reactions = reactionsData
+                  .whereType<Map<String, dynamic>>()
+                  .map<CommentReaction>((reaction) {
+                    return CommentReaction(
+                      id: reaction['id'] as String,
+                      userId: reaction['user_id'] as String,
+                      emoji: reaction['emoji'] as String,
+                      createdAt: DateTime.parse(
+                        reaction['created_at'] as String,
+                      ),
+                    );
+                  })
+                  .toList();
+
+              return ActivityComment(
+                id: commentMap['id'] as String,
+                userId: commentMap['user_id'] as String,
+                author: commentMap['author'] as String,
+                content: commentMap['content'] as String,
+                createdAt: DateTime.parse(commentMap['created_at'] as String),
+                parentCommentId: commentMap['parent_comment_id'] as String?,
+                replies: replies,
+                reactions: reactions,
+              );
+            }
+
+            comments = commentsData
+                .whereType<Map<String, dynamic>>()
+                .map<ActivityComment>((comment) => parseComment(comment))
+                .toList();
+          } else {
+            comments = <ActivityComment>[];
+          }
+
+          return ActivityPost(
+            id: activity['id'] as String,
+            author: activity['author_name'] as String? ?? 'User',
+            activity: activity['activity'] as String? ?? '',
+            title: activity['title'] as String? ?? '',
+            description: activity['description'] as String? ?? '',
+            duration: Duration(minutes: activity['time_minutes'] as int? ?? 0),
+            createdAt: DateTime.parse(activity['created_at'] as String),
+            mediaUrl: activity['image_url'] as String?,
+            kudos: activity['kudos_count'] as int? ?? 0,
+            comments: comments,
+            viewerHasKudoed: activity['has_kudoed'] as bool? ?? false,
+          );
+        }).toList();
+
+        _posts.addAll(newPosts);
+        _currentOffset += _pageSize;
+        _hasMoreActivities = activities.length >= _pageSize;
+        _isLoadingMore = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoadingMore = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to load more activities: ${e.toString()}'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _loadFeed() async {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
+      _currentOffset = 0;
+      _hasMoreActivities = true;
+      _posts = [];
     });
 
     try {
-      final activities = await _activityService.getFeedActivities();
+      final activities = await _activityService.getFeedActivities(
+        limit: _pageSize,
+        offset: 0,
+      );
 
       setState(() {
         _posts = activities.map((activity) {
@@ -126,6 +246,8 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
           );
         }).toList();
         _isLoading = false;
+        _currentOffset = _pageSize;
+        _hasMoreActivities = activities.length >= _pageSize;
       });
 
       // Scroll to highlighted activity if specified
@@ -970,8 +1092,16 @@ class _ActivityFeedPageState extends State<ActivityFeedPage> {
                 controller: _scrollController,
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.fromLTRB(24, 24, 24, 120),
-                itemCount: _posts.length,
+                itemCount: _posts.length + (_isLoadingMore ? 1 : 0),
                 itemBuilder: (context, index) {
+                  // Show loading indicator at the bottom
+                  if (index == _posts.length) {
+                    return const Padding(
+                      padding: EdgeInsets.all(16.0),
+                      child: Center(child: CircularProgressIndicator()),
+                    );
+                  }
+
                   final post = _posts[index];
                   final isHighlighted = post.id == widget.activityIdToHighlight;
                   final shouldExpandComments =
