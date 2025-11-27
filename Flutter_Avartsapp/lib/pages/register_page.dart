@@ -126,6 +126,7 @@ class _RegisterPageState extends State<RegisterPage> {
                           children: [
                             TextFormField(
                               controller: _userNameController,
+                              maxLength: 25,
                               decoration: const InputDecoration(
                                 labelText: 'Username',
                                 hintText: 'couchlegend',

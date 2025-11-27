@@ -314,6 +314,7 @@ class _ActivityPostCardState extends State<ActivityPostCard> {
                     focusNode: _commentFocusNode,
                     minLines: 1,
                     maxLines: 5,
+                    maxLength: 4000,
                     textCapitalization: TextCapitalization.sentences,
                     decoration: InputDecoration(
                       hintText: 'Write a comment...',

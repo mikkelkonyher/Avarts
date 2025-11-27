@@ -234,6 +234,7 @@ class _LogActivityPageState extends State<LogActivityPage> {
           const SizedBox(height: 16),
           TextField(
             controller: _titleController,
+            maxLength: 120,
             decoration: const InputDecoration(
               labelText: 'Title',
               hintText: 'Name your legendary chill session',
@@ -243,6 +244,7 @@ class _LogActivityPageState extends State<LogActivityPage> {
           TextField(
             controller: _descriptionController,
             maxLines: 5,
+            maxLength: 4000,
             decoration: const InputDecoration(
               labelText: 'How did it go?',
               hintText: 'Share the highlights of doing almost nothing',

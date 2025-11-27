@@ -488,6 +488,7 @@ class _CommentWidgetState extends State<CommentWidget> {
                     focusNode: _replyFocusNode,
                     minLines: 1,
                     maxLines: 3,
+                    maxLength: 4000,
                     textCapitalization: TextCapitalization.sentences,
                     style: widget.theme.textTheme.bodyMedium,
                     decoration: InputDecoration(

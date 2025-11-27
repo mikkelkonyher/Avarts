@@ -325,6 +325,7 @@ class _ChatPageState extends State<ChatPage> {
                       controller: _messageController,
                       minLines: 1,
                       maxLines: 4,
+                      maxLength: 2000,
                       decoration: InputDecoration(
                         hintText: 'Send a message…',
                         filled: true,
