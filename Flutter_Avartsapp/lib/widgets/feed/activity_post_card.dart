@@ -331,6 +331,7 @@ class _ActivityPostCardState extends State<ActivityPostCard> {
                       fillColor: colors.surfaceContainerHighest.withValues(
                         alpha: 0.5,
                       ),
+                      counterText: '',
                     ),
                   ),
                 ),

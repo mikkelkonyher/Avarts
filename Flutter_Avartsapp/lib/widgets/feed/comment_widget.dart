@@ -505,6 +505,7 @@ class _CommentWidgetState extends State<CommentWidget> {
                       filled: true,
                       fillColor: widget.colors.surfaceContainerHighest
                           .withValues(alpha: 0.5),
+                      counterText: '',
                     ),
                   ),
                 ),

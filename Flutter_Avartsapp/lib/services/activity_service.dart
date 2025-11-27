@@ -288,7 +288,10 @@ class ActivityService {
       // Fetch all kudos and filter in memory (more efficient than per-activity queries)
       final kudosResponse = activityIds.isEmpty
           ? <Map<String, dynamic>>[]
-          : await client.from('activity_kudos').select('activity_id, user_id');
+          : await client
+                .from('activity_kudos')
+                .select('activity_id, user_id')
+                .inFilter('activity_id', activityIds.toList());
 
       final allKudos = List<Map<String, dynamic>>.from(kudosResponse);
       // Filter to only kudos for our activities
@@ -302,6 +305,7 @@ class ActivityService {
           : await client
                 .from('activity_comments')
                 .select()
+                .inFilter('activity_id', activityIds.toList())
                 .order('created_at', ascending: true);
 
       final allComments = List<Map<String, dynamic>>.from(commentsResponse);
@@ -319,6 +323,7 @@ class ActivityService {
           : await client
                 .from('comment_reactions')
                 .select()
+                .inFilter('comment_id', commentIds.toList())
                 .order('created_at', ascending: true);
 
       final allReactions = List<Map<String, dynamic>>.from(reactionsResponse);
