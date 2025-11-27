@@ -21,11 +21,18 @@ class _MyProfilePageState extends State<MyProfilePage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final ActivityService _activityService = ActivityService();
+  final ScrollController _scrollController = ScrollController();
 
   // Real activities data from Supabase
   List<ActivityPost> _activities = [];
   bool _isLoadingActivities = true;
+  bool _isLoadingMore = false;
   int _currentTabIndex = 0;
+
+  // Pagination state
+  int _currentOffset = 0;
+  final int _pageSize = 20;
+  bool _hasMoreActivities = true;
 
   @override
   void initState() {
@@ -42,13 +49,33 @@ class _MyProfilePageState extends State<MyProfilePage>
         }
       }
     });
+    _scrollController.addListener(_onScroll);
     _loadActivities();
   }
 
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      // User is near the bottom, load more
+      if (!_isLoadingMore && _hasMoreActivities && _currentTabIndex == 1) {
+        _loadMoreActivities();
+      }
+    }
+  }
+
   Future<void> _loadActivities() async {
-    setState(() => _isLoadingActivities = true);
+    setState(() {
+      _isLoadingActivities = true;
+      _currentOffset = 0;
+      _hasMoreActivities = true;
+      _activities = [];
+    });
+
     try {
-      final activitiesData = await _activityService.getUserActivities();
+      final activitiesData = await _activityService.getUserActivities(
+        limit: _pageSize,
+        offset: 0,
+      );
       setState(() {
         _activities = activitiesData.map((data) {
           // Handle image_url - it might be null or empty string
@@ -69,6 +96,8 @@ class _MyProfilePageState extends State<MyProfilePage>
           );
         }).toList();
         _isLoadingActivities = false;
+        _currentOffset = _pageSize;
+        _hasMoreActivities = activitiesData.length >= _pageSize;
       });
     } catch (e) {
       setState(() => _isLoadingActivities = false);
@@ -83,9 +112,62 @@ class _MyProfilePageState extends State<MyProfilePage>
     }
   }
 
+  Future<void> _loadMoreActivities() async {
+    if (_isLoadingMore || !_hasMoreActivities) return;
+
+    setState(() {
+      _isLoadingMore = true;
+    });
+
+    try {
+      final activitiesData = await _activityService.getUserActivities(
+        limit: _pageSize,
+        offset: _currentOffset,
+      );
+
+      setState(() {
+        final newActivities = activitiesData.map((data) {
+          final imageUrl = data['image_url'];
+          final mediaUrl = (imageUrl is String && imageUrl.isNotEmpty)
+              ? imageUrl
+              : null;
+
+          return ActivityPost(
+            id: data['id'] as String?,
+            author: widget.loginResult.displayName,
+            activity: data['activity'] as String,
+            title: data['title'] as String,
+            description: data['description'] as String? ?? '',
+            duration: Duration(minutes: data['time_minutes'] as int),
+            createdAt: DateTime.parse(data['created_at'] as String),
+            mediaUrl: mediaUrl,
+          );
+        }).toList();
+
+        _activities.addAll(newActivities);
+        _currentOffset += _pageSize;
+        _hasMoreActivities = activitiesData.length >= _pageSize;
+        _isLoadingMore = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoadingMore = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to load more activities: $e'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
   @override
   void dispose() {
     _tabController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -661,10 +743,25 @@ class _MyProfilePageState extends State<MyProfilePage>
     return RefreshIndicator(
       onRefresh: _loadActivities,
       child: ListView.separated(
+        controller: _scrollController,
         padding: const EdgeInsets.fromLTRB(24, 24, 24, 48),
-        itemCount: _activities.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 16),
+        itemCount: _activities.length + (_isLoadingMore ? 1 : 0),
+        separatorBuilder: (_, index) {
+          // Don't show separator before loading indicator
+          if (index == _activities.length - 1 && _isLoadingMore) {
+            return const SizedBox.shrink();
+          }
+          return const SizedBox(height: 16);
+        },
         itemBuilder: (context, index) {
+          // Show loading indicator at the bottom
+          if (index == _activities.length) {
+            return const Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Center(child: CircularProgressIndicator()),
+            );
+          }
+
           final activity = _activities[index];
           return _ActivityCard(
             activity: activity,
